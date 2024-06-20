@@ -1,11 +1,11 @@
-import requests
+import aiohttp
 import json
 import os
 
 
 class Sharesight:
     def __init__(self, client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
-                 token_file='token.txt'):
+                 token_file='token.txt', print_result = False):
         self.client_id = client_id
         self.client_secret = client_secret
         self.authorization_code = authorization_code
@@ -14,7 +14,9 @@ class Sharesight:
         self.api_url_base = api_url_base
         self.token_file = token_file
         self.access_token, self.refresh_token = self.load_tokens()
-    def fixjson(badjson):
+        self.print_result = print_result
+
+    def fixjson(self, badjson):
         s = badjson
         idx = 0
         while True:
@@ -32,13 +34,15 @@ class Sharesight:
                 idx = start + len(content) + 6
             except:
                 return s
-    def check_token(self):
+
+    async def check_token(self):
         if not self.access_token:
             print("TOKEN INVALID - GENERATING NEW")
-            self.get_access_token()
+            await self.get_access_token()
         else:
             print("TOKEN VALID")
-    def get_access_token(self):
+
+    async def get_access_token(self):
         payload = {
             'grant_type': 'authorization_code',
             'code': self.authorization_code,
@@ -49,37 +53,42 @@ class Sharesight:
         headers = {
             'Content-Type': 'application/json'
         }
-        response = requests.post(self.token_url, data=json.dumps(payload), headers=headers)
-        if response.status_code == 200:
-            token_data = response.json()
-            self.access_token = token_data['access_token']
-            self.refresh_token = token_data['refresh_token']
-            self.save_tokens()
-            return self.access_token
-        else:
-            print(f"Failed to obtain access token: {response.status_code}")
-            print(response.json())
-            return None
-    def make_api_request(self, endpoint):
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.token_url, data=json.dumps(payload), headers=headers) as response:
+                if response.status == 200:
+                    token_data = await response.json()
+                    self.access_token = token_data['access_token']
+                    self.refresh_token = token_data['refresh_token']
+                    self.save_tokens()
+                    return self.access_token
+                else:
+                    print(f"Failed to obtain access token: {response.status}")
+                    print(await response.json())
+                    return None
+
+    async def make_api_request(self, endpoint):
         headers = {
             'Authorization': f'Bearer {self.access_token}',
             'Accept': 'application/json'
         }
-        response = requests.get(f"{self.api_url_base}{endpoint}", headers=headers)
-        if response.status_code == 200:
-            data = response.json()
-            return data
-        else:
-            print(f"API request failed: {response.status_code}")
-            date = response.json()
-            print(date)
-            return self.fixjson()
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{self.api_url_base}{endpoint}", headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data
+                else:
+                    print(f"API request failed: {response.status}")
+                    data = await response.json()
+                    print(data)
+                    return self.fixjson(data)
+
     def load_tokens(self):
         if os.path.exists(self.token_file):
             with open(self.token_file, 'r') as file:
                 tokens = json.load(file)
                 return tokens['access_token'], tokens['refresh_token']
         return None, None
+
     def save_tokens(self):
         tokens = {
             'access_token': self.access_token,

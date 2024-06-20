@@ -1,11 +1,21 @@
+import asyncio
 import json
-from Sharesight.Sharesight import Sharesight
 import sys
+from Sharesight import Sharesight
 
 sys.dont_write_bytecode = True
 
 
-def main():
+async def merge_dicts(d1, d2):
+    for key in d2:
+        if key in d1 and isinstance(d1[key], dict) and isinstance(d2[key], dict):
+           await merge_dicts(d1[key], d2[key])
+        else:
+            d1[key] = d2[key]
+    return d1
+
+
+async def main():
     client_id = ''
     client_secret = ''
     authorization_code = ''
@@ -23,16 +33,15 @@ def main():
         print("EMPTY REQUIREMENT STRING, ABORTING")
         return
 
-    sharesight = Sharesight(client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
-                            "token.txt")
+    sharesight = Sharesight.Sharesight(client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base, "token.txt", False)
 
-    sharesight.check_token()
+    await sharesight.check_token()
+
     combined_dict = {}
     for endpoint in endpoint_list:
         print(f"\nCalling {endpoint}")
-        response = sharesight.make_api_request(endpoint)
-
-        combined_dict = merge_dicts(combined_dict, response)
+        response = await sharesight.make_api_request(endpoint)
+        combined_dict = await merge_dicts(combined_dict, response)
 
     # Write the combined dictionary to an output.json file
     with open('output.json', 'w') as outfile:
@@ -40,15 +49,9 @@ def main():
 
     print(f"\nYour name is " + combined_dict.get("user", {}).get("name"))
 
+    value = combined_dict.get("value")
 
-def merge_dicts(d1, d2):
-    for key in d2:
-        if key in d1 and isinstance(d1[key], dict) and isinstance(d2[key], dict):
-            merge_dicts(d1[key], d2[key])
-        else:
-            d1[key] = d2[key]
-    return d1
+    print(f"\nProfile Value is ${value} AUD")
 
 
-if __name__ == "__main__":
-    main()
+asyncio.run(main())
