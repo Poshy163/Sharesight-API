@@ -1,5 +1,11 @@
 .idea
 token.txt
-/Sharesight/__pycache__
+/SharesightAPI/__pycache__
 output.json
 
+/build
+/dist
+
+/SharesightAPI.egg-info
+build/lib/SharesightAPI/__init__.py
+SharesightAPI/__init__.py

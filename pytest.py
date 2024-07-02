@@ -1,7 +1,7 @@
 import asyncio
 import json
 import sys
-from Sharesight import SharesightAPI
+from SharesightAPI import SharesightAPI
 
 sys.dont_write_bytecode = True
 

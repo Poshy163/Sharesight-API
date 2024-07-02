@@ -1,11 +1,14 @@
 from setuptools import setup, find_packages
 
+with open("README.md", "r") as f:
+    long_description = f.read()
+
 setup(
     name="SharesightAPI",
     version="1.0.0",
     author="Joshua Leaper",
     author_email="poshernater163@gmail.com",
-    description="A Pyhton libary to access your sharesight portfolio infomation",
+    description="A Python library to access your sharesight portfolio information",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/Poshy163/Sharesight-API",

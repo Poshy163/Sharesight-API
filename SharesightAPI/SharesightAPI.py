@@ -3,24 +3,24 @@ import json
 import os
 
 
-def fix_json(bad_json):
-    s = bad_json
-    idx = 0
-    while True:
-        start = s.index('": "', idx) + 4
-        end1 = s.index('",\n', idx)
-        end2 = s.index('"\n', idx)
-        if end1 < end2:
-            end = end1
-        else:
-            end = end2
-        content = s[start:end]
-        content = content.replace('"', '\\"')
-        s = s[:start] + content + s[end:]
-        idx = start + len(content) + 6
-
-
 class SharesightAPI:
+
+    def fix_json(bad_json):
+        s = bad_json
+        idx = 0
+        while True:
+            start = s.index('": "', idx) + 4
+            end1 = s.index('",\n', idx)
+            end2 = s.index('"\n', idx)
+            if end1 < end2:
+                end = end1
+            else:
+                end = end2
+            content = s[start:end]
+            content = content.replace('"', '\\"')
+            s = s[:start] + content + s[end:]
+            idx = start + len(content) + 6
+
     def __init__(self, client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
                  token_file='token.txt', print_result: object = False):
         self.client_id = client_id
@@ -82,7 +82,7 @@ class SharesightAPI:
                     print(f"API request failed: {response.status}")
                     data = await response.json()
                     print(data)
-                    return fix_json(data)
+                    return self.fix_json(data)
 
     def load_tokens(self):
         if os.path.exists(self.token_file):
