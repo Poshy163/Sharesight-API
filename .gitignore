@@ -9,3 +9,4 @@ output.json
 /SharesightAPI.egg-info
 build/lib/SharesightAPI/__init__.py
 SharesightAPI/__init__.py
+wheeltoken
