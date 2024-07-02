@@ -1,7 +1,7 @@
 import asyncio
 import json
 import sys
-from Sharesight import Sharesight
+from Sharesight import SharesightAPI
 
 sys.dont_write_bytecode = True
 
@@ -33,7 +33,7 @@ async def main():
         print("EMPTY REQUIREMENT STRING, ABORTING")
         return
 
-    sharesight = Sharesight.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url,
+    sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url,
                                           api_url_base, "token.txt", False)
 
     await sharesight.check_token()
