@@ -44,11 +44,11 @@ async def main():
         response = await sharesight.make_api_request(endpoint)
         combined_dict = await merge_dicts(combined_dict, response)
 
-    # Write the combined dictionary to an output.json file
+    # Write the combined dictionary to an output.json file which is saved to the current directory
     with open('output.json', 'w') as outfile:
         json.dump(combined_dict, outfile, indent=1)
 
-    # Do something with it lol
+    # Do something with the response json
     print(f"\nYour name is " + combined_dict.get("user", {}).get("name"))
 
     value = combined_dict.get("value")

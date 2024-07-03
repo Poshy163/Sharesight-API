@@ -1,6 +1,6 @@
+import os
 import aiohttp
 import json
-import os
 
 
 class SharesightAPI:
