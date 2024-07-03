@@ -27,14 +27,15 @@ async def main():
                      f"portfolios/{portfolioID}/valuation", "memberships",
                      f"portfolios/{portfolioID}/trades", f"portfolios/{portfolioID}/payouts", "cash_accounts",
                      "user_instruments", "currencies", "my_user.json"]
+    token_file = "token.txt"
 
     if (
-            client_id == "" or client_secret == "" or redirect_uri == "" or token_url == "" or api_url_base == ""):
+            client_id == "" or client_secret == "" or redirect_uri == "" or api_url_base == ""):
         print("EMPTY REQUIREMENT STRING, ABORTING")
-        return
+        exit(1)
 
     sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url,
-                                             api_url_base, "token.txt", False)
+                                             api_url_base, token_file)
 
     await sharesight.check_token()
 

@@ -1,14 +1,11 @@
 import os
 import aiohttp
 import json
-import re
 
 
 class SharesightAPI:
-
-
     def __init__(self, client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
-                 token_file='token.txt', print_result: object = False):
+                 token_file='token.txt'):
         self.client_id = client_id
         self.client_secret = client_secret
         self.authorization_code = authorization_code
@@ -17,7 +14,6 @@ class SharesightAPI:
         self.api_url_base = api_url_base
         self.token_file = token_file
         self.access_token, self.refresh_token, self.load_auth_code = self.load_tokens()
-        self.print_result = print_result
 
     async def check_token(self):
 
@@ -25,10 +21,10 @@ class SharesightAPI:
             print("TOKEN INVALID - GENERATING NEW (ACCESS TOKEN WRONG)")
             await self.get_access_token()
         elif self.authorization_code != self.load_auth_code:
-            print("TOKEN INVALID - GENERATING NEW (DIFFERENT AUTHH)")
+            print("TOKEN INVALID - GENERATING NEW (DIFFERENT AUTH CODE)")
             await self.get_access_token()
         else:
-            print("TOKEN VALID")
+            print("TOKEN VALID - PASSING")
 
     async def get_access_token(self):
         payload = {
