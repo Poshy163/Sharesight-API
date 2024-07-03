@@ -34,10 +34,11 @@ async def main():
         return
 
     sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url,
-                                          api_url_base, "token.txt", False)
+                                             api_url_base, "token.txt", False)
 
     await sharesight.check_token()
 
+    # For getting each request
     combined_dict = {}
     for endpoint in endpoint_list:
         print(f"\nCalling {endpoint}")

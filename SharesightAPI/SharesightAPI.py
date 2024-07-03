@@ -39,7 +39,7 @@ class SharesightAPI:
             print("TOKEN INVALID - GENERATING NEW (ACCESS TOKEN WRONG)")
             await self.get_access_token()
         elif self.authorization_code != self.load_auth_code:
-            print("TOKEN INVALID - GENERATING NEW (DIFFERENT AUTH)")
+            print("TOKEN INVALID - GENERATING NEW (DIFFERENT AUTHH)")
             await self.get_access_token()
         else:
             print("TOKEN VALID")
