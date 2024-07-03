@@ -2,15 +2,16 @@
 
 API to interface with Sharesight's v2 API
 
-*currently only supports push requests
+- Currently only supports push requests
+- Currently only supports as single portfolio request per instance called
 
 # **How to use** #
-see the pytest.py file for an example
+See the pytest.py file for an example
 
-this whole thing is designed to be asynchronous 
+This whole thing is designed to be asynchronous 
 
 # **How to install** #
-do ```pip install SharesightAPI```
+Do ```pip install SharesightAPI```
 
 # **How to get API token** #
 
@@ -18,7 +19,7 @@ Read [here](https://portfolio.sharesight.com/api/)
 
 # **Input/Output** #
 
-to start, call and assign (like this)
+To start, call and assign (like this)
 
 `sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base, token_file)`
 
@@ -32,12 +33,12 @@ I have assumed some things (if left blank):
 
 + token_file = 'token.txt'
 
-then to check the token (and to import it), run the .check_token() call, if it will return if the token has passed, failed and why.
+Then to check the token (and to import it), run the .check_token() call, if it will return if the token has passed, failed and why.
 
 example:
 `await sharesight.check_token()`
 
-to make an API call, call .make_api_request(endpoint), making the endpoint being what part you want to call. it will return a dictionary with the response 
+To make an API call, call .make_api_request(endpoint, endpoint_list_version), making the endpoint being what part you want to call and the endpoint_list_version being ("v2" or "v3"). It will return a dictionary with the response
 
-example: `await sharesight.make_api_request("portfolios")`
+example: `await sharesight.make_api_request(endpoint, endpoint_list_version)`
 

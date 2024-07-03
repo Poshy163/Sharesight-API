@@ -21,12 +21,13 @@ async def main():
     authorization_code = ''
     redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
     token_url = 'https://api.sharesight.com/oauth2/token'
-    api_url_base = 'https://api.sharesight.com/api/v2/'
-    portfolioID = ""
-    endpoint_list = ["portfolios", "groups", f"portfolios/{portfolioID}/performance",
-                     f"portfolios/{portfolioID}/valuation", "memberships",
-                     f"portfolios/{portfolioID}/trades", f"portfolios/{portfolioID}/payouts", "cash_accounts",
-                     "user_instruments", "currencies", "my_user.json"]
+    api_url_base = 'https://api.sharesight.com/api/'
+    portfolioID = ''
+    v2_endpoint_list = ["portfolios", "groups", f"portfolios/{portfolioID}/performance",
+                        f"portfolios/{portfolioID}/valuation", "memberships",
+                        f"portfolios/{portfolioID}/trades", f"portfolios/{portfolioID}/payouts", "cash_accounts",
+                        "user_instruments", "currencies", "my_user.json"]
+    v3_endpoint_list = ["portfolios"]
     token_file = "token.txt"
 
     if (
@@ -39,12 +40,22 @@ async def main():
 
     await sharesight.check_token()
 
+    # Choose endpoint version
+    endpoint_list_version = "v2"
     # For getting each request
+
     combined_dict = {}
-    for endpoint in endpoint_list:
-        print(f"\nCalling {endpoint}")
-        response = await sharesight.make_api_request(endpoint)
-        combined_dict = await merge_dicts(combined_dict, response)
+
+    if endpoint_list_version == "v2":
+        for endpoint in v2_endpoint_list:
+            print(f"\nCalling {endpoint}")
+            response = await sharesight.make_api_request(endpoint, endpoint_list_version)
+            combined_dict = await merge_dicts(combined_dict, response)
+    elif endpoint_list_version == "v3":
+        for endpoint in v3_endpoint_list:
+            print(f"\nCalling {endpoint}")
+            response = await sharesight.make_api_request(endpoint, endpoint_list_version)
+            combined_dict = await merge_dicts(combined_dict, response)
 
     # Write the combined dictionary to an output.json file which is saved to the current directory
     with open('output.json', 'w') as outfile:

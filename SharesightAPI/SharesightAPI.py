@@ -50,13 +50,13 @@ class SharesightAPI:
                     print(await response.json())
                     exit(1)
 
-    async def make_api_request(self, endpoint):
+    async def make_api_request(self, endpoint, endpoint_list_version):
         headers = {
             'Authorization': f'Bearer {self.access_token}',
             'Accept': 'application/json'
         }
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.api_url_base}{endpoint}", headers=headers) as response:
+            async with session.get(f"{self.api_url_base}{endpoint_list_version}/{endpoint}", headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
                     return data
