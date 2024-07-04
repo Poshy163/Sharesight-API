@@ -33,12 +33,14 @@ I have assumed some things (if left blank):
 
 + token_file = 'token.txt'
 
-Then to check the token (and to import it), run the .check_token() call, if it will return if the token has passed, failed and why.
+Then to check the token (and to import it and gather credentials), run the .validate_token call, if it will return if the token has passed, failed and why. and will store the token in a .txt file
 
 example:
-`await sharesight.check_token()`
+`await sharesight.validate_token()`
 
 To make an API call, call .make_api_request(endpoint, endpoint_list_version), making the endpoint being what part you want to call and the endpoint_list_version being ("v2" or "v3"). It will return a dictionary with the response
 
-example: `await sharesight.make_api_request(endpoint, endpoint_list_version)`
+example: `await sharesight.make_api_request("portfolios", "v2")`
+
+you can see a full list of v2 endpoints [here](https://portfolio.sharesight.com/api/2/doc/index.html), and v3 endpoints [here](https://portfolio.sharesight.com/api/3/doc/index.html) 
 

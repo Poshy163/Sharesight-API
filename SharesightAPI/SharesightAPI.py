@@ -15,7 +15,7 @@ class SharesightAPI:
         self.token_file = token_file
         self.access_token, self.refresh_token, self.load_auth_code = self.load_tokens()
 
-    async def check_token(self):
+    async def validate_token(self):
 
         if not self.access_token:
             print("TOKEN INVALID - GENERATING NEW (ACCESS TOKEN WRONG)")
