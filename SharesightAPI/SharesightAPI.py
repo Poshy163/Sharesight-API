@@ -16,7 +16,6 @@ class SharesightAPI:
         self.access_token, self.refresh_token, self.load_auth_code = self.load_tokens()
 
     async def validate_token(self):
-
         if not self.access_token:
             print("TOKEN INVALID - GENERATING NEW (ACCESS TOKEN WRONG)")
             await self.get_access_token()
@@ -50,13 +49,33 @@ class SharesightAPI:
                     print(await response.json())
                     exit(1)
 
-    async def make_api_request(self, endpoint, endpoint_list_version):
+    async def get_api_request(self, endpoint, endpoint_list_version):
         headers = {
             'Authorization': f'Bearer {self.access_token}',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{self.api_url_base}{endpoint_list_version}/{endpoint}",
+                                   headers=headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    print(data)
+                    return data
+                else:
+                    print(f"API request failed: {response.status}")
+                    data = await response.json()
+                    print(data)
+                    return data
+
+    async def post_api_request(self, endpoint, endpoint_list_version, payload):
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+            'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.api_url_base}{endpoint_list_version}/{endpoint}", headers=headers) as response:
+            async with session.post(f"{self.api_url_base}{endpoint_list_version}/{endpoint}", headers=headers, json=payload) as response:
                 if response.status == 200:
                     data = await response.json()
                     return data

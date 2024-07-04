@@ -40,21 +40,22 @@ async def main():
 
     await sharesight.validate_token()
 
+
     # Choose endpoint version
     endpoint_list_version = "v2"
-    # For getting each request
 
+    # For getting each request
     combined_dict = {}
 
     if endpoint_list_version == "v2":
         for endpoint in v2_endpoint_list:
             print(f"\nCalling {endpoint}")
-            response = await sharesight.make_api_request(endpoint, endpoint_list_version)
+            response = await sharesight.get_api_request(endpoint, endpoint_list_version)
             combined_dict = await merge_dicts(combined_dict, response)
     elif endpoint_list_version == "v3":
         for endpoint in v3_endpoint_list:
             print(f"\nCalling {endpoint}")
-            response = await sharesight.make_api_request(endpoint, endpoint_list_version)
+            response = await sharesight.get_api_request(endpoint, endpoint_list_version)
             combined_dict = await merge_dicts(combined_dict, response)
 
     # Write the combined dictionary to an output.json file which is saved to the current directory

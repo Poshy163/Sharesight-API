@@ -38,9 +38,13 @@ Then to check the token (and to import it and gather credentials), run the .vali
 example:
 `await sharesight.validate_token()`
 
-To make an API call, call .make_api_request(endpoint, endpoint_list_version), making the endpoint being what part you want to call and the endpoint_list_version being ("v2" or "v3"). It will return a dictionary with the response
+To make an API call (get): call .get_api_request(endpoint, endpoint_list_version), making the endpoint being what part you want to call and the endpoint_list_version being ("v2" or "v3"). It will return a dictionary with the response
 
-example: `await sharesight.make_api_request("portfolios", "v2")`
+example: `await sharesight.get_api_request("portfolios", "v2")`
 
-you can see a full list of v2 endpoints [here](https://portfolio.sharesight.com/api/2/doc/index.html), and v3 endpoints [here](https://portfolio.sharesight.com/api/3/doc/index.html) 
+To make an API call (post): call .post_api_request, with the addition of parsing in a payload JSON to post
+
+example: `await sharesight.post_api_request("portfolios", "v2", "{ "portfolio": { "name": "My new Portfolio"}}")`
+
+you can see a full list of v2 endpoints [here](https://portfolio.sharesight.com/api/2/doc/index.html), and v3 endpoints [here](https://portfolio.sharesight.com/api/3/doc/index.html) (including examples)
 
