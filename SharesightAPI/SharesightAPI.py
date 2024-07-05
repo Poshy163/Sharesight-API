@@ -18,12 +18,13 @@ class SharesightAPI:
     async def validate_token(self):
         if not self.access_token:
             print("TOKEN INVALID - GENERATING NEW (ACCESS TOKEN WRONG)")
-            await self.get_access_token()
+            return await self.get_access_token()
         elif self.authorization_code != self.load_auth_code:
             print("TOKEN INVALID - GENERATING NEW (DIFFERENT AUTH CODE)")
-            await self.get_access_token()
+            return await self.get_access_token()
         else:
             print("TOKEN VALID - PASSING")
+            return self.access_token
 
     async def get_access_token(self):
         payload = {
@@ -49,31 +50,45 @@ class SharesightAPI:
                     print(await response.json())
                     exit(1)
 
-    async def get_api_request(self, endpoint, endpoint_list_version):
+    async def get_api_request(self, endpoint, endpoint_list_version, access_token=None):
+
+        if access_token is None:
+            access_token = self.access_token
+
         headers = {
-            'Authorization': f'Bearer {self.access_token}',
+            'Authorization': f'Bearer {access_token}',
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         }
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.api_url_base}{endpoint_list_version}/{endpoint}", headers=headers) as response:
+            async with session.get(f"{self.api_url_base}{endpoint_list_version}/{endpoint}",
+                                   headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
                     return data
+                elif response.status == 401:
+                    print(f"API request failed: {response.status}")
+                    data = await response.json()
+                    print(data)
+                    exit(1)
                 else:
                     print(f"API request failed: {response.status}")
                     data = await response.json()
                     print(data)
                     return data
 
-    async def post_api_request(self, endpoint, endpoint_list_version, payload):
+
+    async def post_api_request(self, endpoint, endpoint_list_version, payload, access_token=None):
+        if access_token is None:
+            access_token = self.access_token
         headers = {
-            'Authorization': f'Bearer {self.access_token}',
+            'Authorization': f'Bearer {access_token}',
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
         async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.api_url_base}{endpoint_list_version}/{endpoint}", headers=headers, json=payload) as response:
+            async with session.post(f"{self.api_url_base}{endpoint_list_version}/{endpoint}", headers=headers,
+                                    json=payload) as response:
                 if response.status == 200:
                     data = await response.json()
                     return data
