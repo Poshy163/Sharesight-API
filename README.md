@@ -10,6 +10,8 @@ See the pytest.py file for an example
 
 This whole thing is designed to be asynchronous 
 
+Added support for refresh token, no need to feed in clientID, clientSecret or authCode if token file exists
+
 # **How to install** #
 Do ```pip install SharesightAPI```
 

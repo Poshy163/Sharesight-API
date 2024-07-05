@@ -19,23 +19,21 @@ class SharesightAPI:
         self.debugging = debugging
 
     async def validate_token(self):
+
+        if self.authorization_code == "":
+            self.authorization_code = self.load_auth_code
+
         current_time = time.time()
+
         if self.debugging:
             print(f"CURRENT TIME: {current_time}")
             print(f"REFRESH TOKEN TIME: {self.token_expiry}\n")
-
         if self.access_token is None:
             print("NO TOKEN FILE - GENERATING NEW")
             return await self.get_access_token()
         elif not self.access_token or current_time >= self.token_expiry:
             print("TOKEN INVALID OR EXPIRED - GENERATING NEW")
-            print(self.access_token)
-            NEW = await self.refresh_access_token()
-            print(NEW)
-            return NEW
-        elif self.authorization_code != self.load_auth_code:
-            print("TOKEN INVALID - DIFFERENT AUTH CODE")
-            return await self.get_access_token()
+            return await self.refresh_access_token()
         else:
             print("TOKEN VALID - PASSING")
             return self.access_token
@@ -88,6 +86,11 @@ class SharesightAPI:
                     self.token_expiry = current_time + token_data.get('expires_in', 1800)
                     self.save_tokens()
                     return self.access_token
+                elif response.status == 400:
+                    print(f"Failed to obtain access token: {response.status}")
+                    print(f"Are you sure you filled out correct constructor information?")
+                    print(await response.json())
+                    exit(1)
                 else:
                     print(f"Failed to obtain access token: {response.status}")
                     print(await response.json())

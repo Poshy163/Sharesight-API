@@ -33,7 +33,7 @@ async def main():
     token_url = 'https://api.sharesight.com/oauth2/token'
     api_url_base = 'https://api.sharesight.com/api/'
 
-    if authorization_code == "" or redirect_uri == "" or api_url_base == "":
+    if redirect_uri == "" or api_url_base == "" or token_url == "":
         print("EMPTY REQUIREMENT STRING, ABORTING")
         exit(1)
 
