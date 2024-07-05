@@ -1,6 +1,7 @@
 import os
 import aiohttp
 import json
+import time
 
 
 class SharesightAPI:
@@ -13,20 +14,56 @@ class SharesightAPI:
         self.token_url = token_url
         self.api_url_base = api_url_base
         self.token_file = token_file
-        self.access_token, self.refresh_token, self.load_auth_code = self.load_tokens()
+        self.token_expiry = 1800
+        self.access_token, self.refresh_token, self.token_expiry, self.load_auth_code = self.load_tokens()
 
     async def validate_token(self):
-        if not self.access_token:
-            print("TOKEN INVALID - GENERATING NEW (ACCESS TOKEN WRONG)")
+        current_time = time.time()
+        print(f"CURRENT TIME: {current_time}")
+        print(f"REFRESH TOKEN TIME: {self.token_expiry}\n")
+
+        if self.access_token is None:
+            print("NO TOKEN FILE - GENERATING NEW")
             return await self.get_access_token()
+        elif not self.access_token or current_time >= self.token_expiry:
+            print("TOKEN INVALID OR EXPIRED - GENERATING NEW")
+            print(self.access_token)
+            NEW = await self.refresh_access_token()
+            print(NEW)
+            return NEW
         elif self.authorization_code != self.load_auth_code:
-            print("TOKEN INVALID - GENERATING NEW (DIFFERENT AUTH CODE)")
+            print("TOKEN INVALID - DIFFERENT AUTH CODE")
             return await self.get_access_token()
         else:
             print("TOKEN VALID - PASSING")
             return self.access_token
 
+    async def refresh_access_token(self):
+        payload = {
+            'grant_type': 'refresh_token',
+            'refresh_token': self.refresh_token,
+            'client_id': self.client_id,
+            'client_secret': self.client_secret
+        }
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.token_url, data=json.dumps(payload), headers=headers) as response:
+                if response.status == 200:
+                    token_data = await response.json()
+                    print(token_data)
+                    self.access_token = token_data['access_token']
+                    self.token_expiry = time.time() + token_data.get('expires_in', 1800)
+                    self.save_tokens()
+                    return self.access_token
+                else:
+                    print(f"Failed to refresh access token: {response.status}")
+                    print(await response.json())
+                    exit(1)
+
     async def get_access_token(self):
+        current_time = time.time()
         payload = {
             'grant_type': 'authorization_code',
             'code': self.authorization_code,
@@ -41,8 +78,10 @@ class SharesightAPI:
             async with session.post(self.token_url, data=json.dumps(payload), headers=headers) as response:
                 if response.status == 200:
                     token_data = await response.json()
+                    print(token_data)
                     self.access_token = token_data['access_token']
                     self.refresh_token = token_data['refresh_token']
+                    self.token_expiry = current_time + token_data.get('expires_in', 1800)
                     self.save_tokens()
                     return self.access_token
                 else:
@@ -77,7 +116,6 @@ class SharesightAPI:
                     print(data)
                     return data
 
-
     async def post_api_request(self, endpoint, endpoint_list_version, payload, access_token=None):
         if access_token is None:
             access_token = self.access_token
@@ -102,14 +140,16 @@ class SharesightAPI:
         if os.path.exists(self.token_file):
             with open(self.token_file, 'r') as file:
                 tokens = json.load(file)
-                return tokens['access_token'], tokens['refresh_token'], tokens['auth_code']
-        return None, None, None
+                return tokens['access_token'], tokens['refresh_token'], tokens['token_expiry'], tokens['auth_code']
+        return None, None, None, None
 
     def save_tokens(self):
         tokens = {
             'auth_code': self.authorization_code,
             'access_token': self.access_token,
+            'token_expiry': self.token_expiry,
             'refresh_token': self.refresh_token
+
         }
         with open(self.token_file, 'w') as file:
             json.dump(tokens, file)
