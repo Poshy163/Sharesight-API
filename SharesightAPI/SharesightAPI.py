@@ -6,7 +6,7 @@ import time
 
 class SharesightAPI:
     def __init__(self, client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
-                 token_file='token.txt'):
+                 token_file='token.txt', debugging=False):
         self.client_id = client_id
         self.client_secret = client_secret
         self.authorization_code = authorization_code
@@ -16,11 +16,13 @@ class SharesightAPI:
         self.token_file = token_file
         self.token_expiry = 1800
         self.access_token, self.refresh_token, self.token_expiry, self.load_auth_code = self.load_tokens()
+        self.debugging = debugging
 
     async def validate_token(self):
         current_time = time.time()
-        print(f"CURRENT TIME: {current_time}")
-        print(f"REFRESH TOKEN TIME: {self.token_expiry}\n")
+        if self.debugging:
+            print(f"CURRENT TIME: {current_time}")
+            print(f"REFRESH TOKEN TIME: {self.token_expiry}\n")
 
         if self.access_token is None:
             print("NO TOKEN FILE - GENERATING NEW")
@@ -52,7 +54,8 @@ class SharesightAPI:
             async with session.post(self.token_url, data=json.dumps(payload), headers=headers) as response:
                 if response.status == 200:
                     token_data = await response.json()
-                    print(token_data)
+                    if self.debugging:
+                        print(token_data)
                     self.access_token = token_data['access_token']
                     self.token_expiry = time.time() + token_data.get('expires_in', 1800)
                     self.save_tokens()
@@ -78,7 +81,8 @@ class SharesightAPI:
             async with session.post(self.token_url, data=json.dumps(payload), headers=headers) as response:
                 if response.status == 200:
                     token_data = await response.json()
-                    print(token_data)
+                    if self.debugging:
+                        print(token_data)
                     self.access_token = token_data['access_token']
                     self.refresh_token = token_data['refresh_token']
                     self.token_expiry = current_time + token_data.get('expires_in', 1800)

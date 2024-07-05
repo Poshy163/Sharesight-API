@@ -21,7 +21,7 @@ Read [here](https://portfolio.sharesight.com/api/)
 
 To start, call and assign (like this)
 
-`sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base, token_file)`
+`sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base, token_file, True)`
 
 Sharesight has some recommendations for defaults as seen [here](https://portfolio.sharesight.com/api/2/authentication_flow):
 
@@ -32,6 +32,7 @@ Sharesight has some recommendations for defaults as seen [here](https://portfoli
 I have assumed some things (if left blank):
 
 + token_file = 'token.txt'
++ debugging = False
 
 Then to check the token (and to import it and gather credentials), run the .validate_token call, if it will return if the token has passed, failed and why. and will store the token in a .txt file
 

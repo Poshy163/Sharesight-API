@@ -16,12 +16,10 @@ async def merge_dicts(d1, d2):
 
 
 async def main():
+    # User Customisable
     client_id = ''
     client_secret = ''
     authorization_code = ''
-    redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
-    token_url = 'https://api.sharesight.com/oauth2/token'
-    api_url_base = 'https://api.sharesight.com/api/'
     portfolioID = ''
     v2_endpoint_list = ["portfolios", "groups", f"portfolios/{portfolioID}/performance",
                         f"portfolios/{portfolioID}/valuation", "memberships",
@@ -30,13 +28,17 @@ async def main():
     v3_endpoint_list = ["portfolios"]
     token_file = "token.txt"
 
-    if (
-            client_id == "" or client_secret == "" or redirect_uri == "" or api_url_base == ""):
+    # Fixed
+    redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
+    token_url = 'https://api.sharesight.com/oauth2/token'
+    api_url_base = 'https://api.sharesight.com/api/'
+
+    if authorization_code == "" or redirect_uri == "" or api_url_base == "":
         print("EMPTY REQUIREMENT STRING, ABORTING")
         exit(1)
 
     sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url,
-                                             api_url_base, token_file)
+                                             api_url_base, token_file, True)
 
     access_token = await sharesight.validate_token()
 
