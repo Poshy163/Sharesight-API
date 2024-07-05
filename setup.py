@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
 
 setup(
     name="SharesightAPI",
-    version="1.1.0",
+    version="1.1.1",
     author="Joshua Leaper",
     author_email="poshernater163@gmail.com",
     description="A Python library to access your sharesight portfolio information",
