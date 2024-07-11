@@ -16,8 +16,14 @@ class SharesightAPI:
         self.api_url_base = api_url_base
         self.token_file = token_file
         self.token_expiry = 1800
-        self.access_token, self.refresh_token, self.token_expiry, self.load_auth_code = self.load_tokens()
+        self.access_token = None
+        self.refresh_token = None
+        self.load_auth_code = None
+        self.token_expiry = None
         self.debugging = debugging
+
+    async def initialize(self):
+        self.access_token, self.refresh_token, self.token_expiry, self.load_auth_code = await self.load_tokens()
 
     async def validate_token(self):
 

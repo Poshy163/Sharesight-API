@@ -40,6 +40,7 @@ async def main():
     sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url,
                                              api_url_base, token_file, True)
 
+    await sharesight.initialize()
     access_token = await sharesight.validate_token()
 
     # Choose endpoint version
