@@ -37,7 +37,7 @@ Then; to get the existing data (optional), run this to get the values:
 
 I have assumed some things (if left blank):
 
-+ token_file = 'token.txt'
++ token_file = 'sharesight_token.txt'
 + debugging = False
 
 Then to check the token (and to import it and gather credentials), run the .validate_token call, if it will return if the token has passed, failed and why. and will store the token in a .txt file

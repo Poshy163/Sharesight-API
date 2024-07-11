@@ -1,6 +1,9 @@
 import asyncio
 import json
 import sys
+
+import aiofiles
+
 from SharesightAPI import SharesightAPI
 
 sys.dont_write_bytecode = True
@@ -60,8 +63,8 @@ async def main():
             combined_dict = await merge_dicts(combined_dict, response)
 
     # Write the combined dictionary to an output.json file which is saved to the current directory
-    with open('output.json', 'w') as outfile:
-        json.dump(combined_dict, outfile, indent=1)
+    async with aiofiles.open('output.json', 'w') as outfile:
+        await outfile.write(json.dumps(combined_dict, indent=1))
 
     # Do something with the response json
     print(f"\nYour name is " + combined_dict.get("user", {}).get("name"))
