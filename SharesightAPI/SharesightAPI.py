@@ -3,6 +3,9 @@ import os
 import aiohttp
 import json
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SharesightAPI:
@@ -33,16 +36,16 @@ class SharesightAPI:
         current_time = time.time()
 
         if self.debugging:
-            print(f"CURRENT TIME: {current_time}")
-            print(f"REFRESH TOKEN TIME: {self.token_expiry}\n")
+            logger.debug(f"CURRENT TIME: {current_time}")
+            logger.debug(f"REFRESH TOKEN TIME: {self.token_expiry}\n")
         if self.access_token is None:
-            print("NO TOKEN FILE - GENERATING NEW")
+            logger.debug("NO TOKEN FILE - GENERATING NEW")
             return await self.get_access_token()
         elif not self.access_token or current_time >= self.token_expiry:
-            print("TOKEN INVALID OR EXPIRED - GENERATING NEW")
+            logger.debug("TOKEN INVALID OR EXPIRED - GENERATING NEW")
             return await self.refresh_access_token()
         else:
-            print("TOKEN VALID - PASSING")
+            logger.debug("TOKEN VALID - PASSING")
             return self.access_token
 
     async def refresh_access_token(self):
@@ -60,14 +63,14 @@ class SharesightAPI:
                 if response.status == 200:
                     token_data = await response.json()
                     if self.debugging:
-                        print(token_data)
+                        logger.debug(token_data)
                     self.access_token = token_data['access_token']
                     self.token_expiry = time.time() + token_data.get('expires_in', 1800)
                     await self.save_tokens()
                     return self.access_token
                 else:
-                    print(f"Failed to refresh access token: {response.status}")
-                    print(await response.json())
+                    logger.debug(f"Failed to refresh access token: {response.status}")
+                    logger.debug(await response.json())
                     exit(1)
 
     async def get_access_token(self):
@@ -87,20 +90,20 @@ class SharesightAPI:
                 if response.status == 200:
                     token_data = await response.json()
                     if self.debugging:
-                        print(token_data)
+                        logger.debug(token_data)
                     self.access_token = token_data['access_token']
                     self.refresh_token = token_data['refresh_token']
                     self.token_expiry = current_time + token_data.get('expires_in', 1800)
                     await self.save_tokens()
                     return self.access_token
                 elif response.status == 400:
-                    print(f"Failed to obtain access token: {response.status}")
-                    print(f"Are you sure you filled out correct constructor information?")
-                    print(await response.json())
+                    logger.debug(f"Failed to obtain access token: {response.status}")
+                    logger.debug(f"Are you sure you filled out correct constructor information?")
+                    logger.debug(await response.json())
                     exit(1)
                 else:
-                    print(f"Failed to obtain access token: {response.status}")
-                    print(await response.json())
+                    logger.debug(f"Failed to obtain access token: {response.status}")
+                    logger.debug(await response.json())
                     exit(1)
 
     async def get_api_request(self, endpoint, endpoint_list_version, access_token=None):
@@ -120,14 +123,14 @@ class SharesightAPI:
                     data = await response.json()
                     return data
                 elif response.status == 401:
-                    print(f"API request failed: {response.status}")
+                    logger.debug(f"API request failed: {response.status}")
                     data = await response.json()
-                    print(data)
+                    logger.debug(data)
                     exit(1)
                 else:
-                    print(f"API request failed: {response.status}")
+                    logger.debug(f"API request failed: {response.status}")
                     data = await response.json()
-                    print(data)
+                    logger.debug(data)
                     return data
 
     async def post_api_request(self, endpoint, endpoint_list_version, payload, access_token=None):
@@ -145,9 +148,9 @@ class SharesightAPI:
                     data = await response.json()
                     return data
                 else:
-                    print(f"API request failed: {response.status}")
+                    logger.debug(f"API request failed: {response.status}")
                     data = await response.json()
-                    print(data)
+                    logger.debug(data)
                     return data
 
     async def load_tokens(self):

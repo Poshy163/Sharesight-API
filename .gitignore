@@ -1,5 +1,5 @@
 .idea
-token.txt
+sharesight_token.txt
 /SharesightAPI/__pycache__
 output.json
 
