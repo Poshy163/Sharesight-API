@@ -26,7 +26,7 @@ async def main():
                         f"portfolios/{portfolioID}/trades", f"portfolios/{portfolioID}/payouts", "cash_accounts",
                         "user_instruments", "currencies", "my_user.json"]
     v3_endpoint_list = ["portfolios"]
-    token_file = "token.txt"
+    token_file = "sharesight_token.txt"
 
     # Fixed
     redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'

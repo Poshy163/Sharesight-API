@@ -27,6 +27,10 @@ To start, call and assign (like this)
 
 Sharesight has some recommendations for defaults as seen [here](https://portfolio.sharesight.com/api/2/authentication_flow):
 
+Then; to get the existing data (optional), run this to get the values:
+
+`await sharesight.initialize()`
+
 + redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
 + token_url = 'https://api.sharesight.com/oauth2/token'
 + api_url_base = 'https://api.sharesight.com/api/v2/'
