@@ -1,3 +1,4 @@
+import aiofiles
 import os
 import aiohttp
 import json
@@ -56,7 +57,7 @@ class SharesightAPI:
                         print(token_data)
                     self.access_token = token_data['access_token']
                     self.token_expiry = time.time() + token_data.get('expires_in', 1800)
-                    self.save_tokens()
+                    await self.save_tokens()
                     return self.access_token
                 else:
                     print(f"Failed to refresh access token: {response.status}")
@@ -84,7 +85,7 @@ class SharesightAPI:
                     self.access_token = token_data['access_token']
                     self.refresh_token = token_data['refresh_token']
                     self.token_expiry = current_time + token_data.get('expires_in', 1800)
-                    self.save_tokens()
+                    await self.save_tokens()
                     return self.access_token
                 elif response.status == 400:
                     print(f"Failed to obtain access token: {response.status}")
@@ -143,20 +144,20 @@ class SharesightAPI:
                     print(data)
                     return data
 
-    def load_tokens(self):
+    async def load_tokens(self):
         if os.path.exists(self.token_file):
-            with open(self.token_file, 'r') as file:
-                tokens = json.load(file)
+            async with aiofiles.open(self.token_file, 'r') as file:
+                content = await file.read()
+                tokens = json.loads(content)
                 return tokens['access_token'], tokens['refresh_token'], tokens['token_expiry'], tokens['auth_code']
         return None, None, None, None
 
-    def save_tokens(self):
+    async def save_tokens(self):
         tokens = {
             'auth_code': self.authorization_code,
             'access_token': self.access_token,
             'token_expiry': self.token_expiry,
             'refresh_token': self.refresh_token
-
         }
-        with open(self.token_file, 'w') as file:
-            json.dump(tokens, file)
+        async with aiofiles.open(self.token_file, 'w') as file:
+            await file.write(json.dumps(tokens))
