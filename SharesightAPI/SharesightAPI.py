@@ -26,6 +26,8 @@ class SharesightAPI:
         self.debugging = debugging
 
     async def initialize(self):
+        if self.debugging:
+            logging.basicConfig(level=logging.DEBUG)
         self.access_token, self.refresh_token, self.token_expiry, self.load_auth_code = await self.load_tokens()
 
     async def validate_token(self):
