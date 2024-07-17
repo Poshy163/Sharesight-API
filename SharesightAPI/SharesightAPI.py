@@ -10,14 +10,19 @@ logger = logging.getLogger(__name__)
 
 class SharesightAPI:
     def __init__(self, client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
-                 token_file='sharesight_token.txt', debugging=False):
+                 token_file="sharesight_token.txt", debugging=False):
         self.client_id = client_id
         self.client_secret = client_secret
         self.authorization_code = authorization_code
         self.redirect_uri = redirect_uri
         self.token_url = token_url
         self.api_url_base = api_url_base
-        self.token_file = token_file
+        if token_file == "sharesight_token.txt":
+            self.token_file = "sharesight_token.txt"
+        elif token_file == "HA.txt":
+            self.token_file = f"sharesight_token_{self.client_id}.txt"
+        else:
+            self.token_file = token_file
         self.token_expiry = 1800
         self.access_token = None
         self.refresh_token = None

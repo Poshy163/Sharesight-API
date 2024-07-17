@@ -23,13 +23,13 @@ async def main():
     client_id = ''
     client_secret = ''
     authorization_code = ''
-    portfolioID = ''
+    portfolioID = '1020131'
     v2_endpoint_list = ["portfolios", "groups", f"portfolios/{portfolioID}/performance",
                         f"portfolios/{portfolioID}/valuation", "memberships",
                         f"portfolios/{portfolioID}/trades", f"portfolios/{portfolioID}/payouts", "cash_accounts",
                         "user_instruments", "currencies", "my_user.json"]
     v3_endpoint_list = ["portfolios"]
-    token_file = "sharesight_token.txt"
+    token_file = "HA.txt"
 
     # Fixed
     redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
