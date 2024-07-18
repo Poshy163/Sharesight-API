@@ -78,7 +78,7 @@ class SharesightAPI:
                 else:
                     logger.info(f"Failed to refresh access token: {response.status}")
                     logger.info(await response.json())
-                    exit(1)
+                    return None
 
     async def get_access_token(self):
         current_time = time.time()
@@ -107,11 +107,11 @@ class SharesightAPI:
                     logger.info(f"Failed to obtain access token: {response.status}")
                     logger.info(f"Are you sure you filled out correct constructor information?")
                     logger.info(await response.json())
-                    exit(1)
+                    return None
                 else:
                     logger.info(f"Failed to obtain access token: {response.status}")
                     logger.info(await response.json())
-                    exit(1)
+                    return None
 
     async def get_api_request(self, endpoint, endpoint_list_version, access_token=None):
 
@@ -133,7 +133,7 @@ class SharesightAPI:
                     logger.info(f"API request failed: {response.status}")
                     data = await response.json()
                     logger.info(data)
-                    exit(1)
+                    return None
                 else:
                     logger.info(f"API request failed: {response.status}")
                     data = await response.json()
