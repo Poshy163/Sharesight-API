@@ -40,7 +40,10 @@ I have assumed some things (if left blank):
 + token_file = 'sharesight_token.txt'
 + debugging = False
 
+Setting token_file to be 'HA.txt' will append the client ID to sharesight_token. eg: sharesight_token_4123213214123.txt
+
 Then to check the token (and to import it and gather credentials), run the .validate_token call, if it will return if the token has passed, failed and why. and will store the token in a .txt file
+
 
 example:
 `await sharesight.validate_token()`
