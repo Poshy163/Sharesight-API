@@ -26,17 +26,16 @@ class SharesightAPI:
         self.token_expiry = 1800
         self.access_token = None
         self.refresh_token = None
-        self.load_auth_code = None
         self.token_expiry = None
         self.debugging = debugging
 
     async def get_token_data(self):
-        self.access_token, self.refresh_token, self.token_expiry, self.load_auth_code = await self.load_tokens()
+        self.access_token, self.refresh_token, self.token_expiry, self.authorization_code = await self.load_tokens()
 
     async def validate_token(self):
 
         if self.authorization_code == "":
-            self.authorization_code = self.load_auth_code
+            self.authorization_code = self.authorization_code
 
         current_time = time.time()
 
@@ -71,6 +70,7 @@ class SharesightAPI:
                     if self.debugging:
                         logger.info(token_data)
                     self.access_token = token_data['access_token']
+                    self.refresh_token = token_data['refresh_token']
                     self.token_expiry = time.time() + token_data.get('expires_in', 1800)
                     await self.save_tokens()
                     return self.access_token
