@@ -42,36 +42,37 @@ async def main():
 
     sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url,
                                              api_url_base, token_file, True)
+    while True:
+        await sharesight.get_token_data()
+        access_token = await sharesight.validate_token()
 
-    await sharesight.get_token_data()
-    access_token = await sharesight.validate_token()
+        # Choose endpoint version
+        endpoint_list_version = "v2"
 
-    # Choose endpoint version
-    endpoint_list_version = "v2"
+        combined_dict = {}
 
-    combined_dict = {}
+        if endpoint_list_version == "v2":
+            for endpoint in v2_endpoint_list:
+                print(f"\nCalling {endpoint}")
+                response = await sharesight.get_api_request(endpoint, endpoint_list_version, access_token)
+                combined_dict = await merge_dicts(combined_dict, response)
+        elif endpoint_list_version == "v3":
+            for endpoint in v3_endpoint_list:
+                print(f"\nCalling {endpoint}")
+                response = await sharesight.get_api_request(endpoint, endpoint_list_version, access_token)
+                combined_dict = await merge_dicts(combined_dict, response)
 
-    if endpoint_list_version == "v2":
-        for endpoint in v2_endpoint_list:
-            print(f"\nCalling {endpoint}")
-            response = await sharesight.get_api_request(endpoint, endpoint_list_version, access_token)
-            combined_dict = await merge_dicts(combined_dict, response)
-    elif endpoint_list_version == "v3":
-        for endpoint in v3_endpoint_list:
-            print(f"\nCalling {endpoint}")
-            response = await sharesight.get_api_request(endpoint, endpoint_list_version, access_token)
-            combined_dict = await merge_dicts(combined_dict, response)
+        # Write the combined dictionary to an output.json file which is saved to the current directory
+        async with aiofiles.open('output.json', 'w') as outfile:
+            await outfile.write(json.dumps(combined_dict, indent=1))
 
-    # Write the combined dictionary to an output.json file which is saved to the current directory
-    async with aiofiles.open('output.json', 'w') as outfile:
-        await outfile.write(json.dumps(combined_dict, indent=1))
+        # Do something with the response json
+        print(f"\nYour name is " + combined_dict.get("user", {}).get("name"))
 
-    # Do something with the response json
-    print(f"\nYour name is " + combined_dict.get("user", {}).get("name"))
+        value = combined_dict.get("value")
 
-    value = combined_dict.get("value")
-
-    print(f"\nProfile Value is ${value} AUD")
+        print(f"\nProfile Value is ${value} AUD")
+        await asyncio.sleep(60)
 
 
 asyncio.run(main())

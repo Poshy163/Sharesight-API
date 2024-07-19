@@ -26,19 +26,19 @@ class SharesightAPI:
         self.token_expiry = 1800
         self.access_token = None
         self.refresh_token = None
+        self.load_auth_code = None
         self.token_expiry = None
         self.debugging = debugging
-        self.load_auth_constuctor = authorization_code
 
     async def get_token_data(self):
         if self.debugging:
             logging.basicConfig(level=logging.DEBUG)
-        self.access_token, self.refresh_token, self.token_expiry, self.authorization_code = await self.load_tokens()
+        self.access_token, self.refresh_token, self.token_expiry, self.load_auth_code = await self.load_tokens()
 
     async def validate_token(self):
 
-        if self.authorization_code is None:
-            self.authorization_code = self.load_auth_constuctor
+        if self.authorization_code is None or self.authorization_code == "":
+            self.authorization_code = self.load_auth_code
 
         current_time = time.time()
 
@@ -57,7 +57,7 @@ class SharesightAPI:
             return self.access_token
 
     async def refresh_access_token(self):
-        await self.get_token_data()  # Get current token data when refreshing
+        await self.get_token_data()
         payload = {
             'grant_type': 'refresh_token',
             'refresh_token': self.refresh_token,
@@ -72,7 +72,7 @@ class SharesightAPI:
                 if response.status == 200:
                     token_data = await response.json()
                     if self.debugging:
-                        logger.info(token_data)
+                        logger.info(f"Refresh_access_token response: {token_data}")
                     self.access_token = token_data['access_token']
                     self.refresh_token = token_data['refresh_token']
                     self.token_expiry = time.time() + token_data.get('expires_in', 1800)
@@ -85,10 +85,6 @@ class SharesightAPI:
 
     async def get_access_token(self):
         current_time = time.time()
-        logger.info(f"code:{self.authorization_code}")
-        logger.info(f"code:{self.redirect_uri}")
-        logger.info(f"code:{self.client_id}")
-        logger.info(f"code:{self.client_secret}")
         payload = {
             'grant_type': 'authorization_code',
             'code': self.authorization_code,
@@ -103,10 +99,10 @@ class SharesightAPI:
             async with session.post(self.token_url, data=json.dumps(payload), headers=headers) as response:
                 if response.status == 200:
                     token_data = await response.json()
-                    logger.info(f"TOKEN DATA {token_data}")
                     if self.debugging:
-                        logger.info(token_data)
+                        logger.info(f"get_access_token response: {token_data}")
                     self.access_token = token_data['access_token']
+                    self.refresh_token = token_data['refresh_token']
                     self.token_expiry = current_time + token_data.get('expires_in', 1800)
                     await self.save_tokens()
                     return self.access_token
