@@ -27,9 +27,8 @@ To start, call and assign (like this)
 
 Sharesight has some recommendations for defaults as seen [here](https://portfolio.sharesight.com/api/2/authentication_flow):
 
-Then; to get the existing data (optional), run this to get the values:
 
-`await sharesight.initialize()`
+
 
 + redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
 + token_url = 'https://api.sharesight.com/oauth2/token'
@@ -42,15 +41,27 @@ I have assumed some things (if left blank):
 
 Setting token_file to be 'HA.txt' will append the client ID to sharesight_token. eg: sharesight_token_4123213214123.txt
 
-Then to check the token (and to import it and gather credentials), run the .validate_token call, if it will return if the token has passed, failed and why. and will store the token in a .txt file
+Then; to get the existing data contained within the token file (optional), run this to get the values and store it within the constructor:
+
+`await sharesight.get_token_data()`
 
 
-example:
-`await sharesight.validate_token()`
+To check the currently loaded token, run the .validate_token() call, if it will return if the token has passed, failed and why. and will store the token in a .txt file
 
-To make an API call (get): call .get_api_request(endpoint, endpoint_list_version), making the endpoint being what part you want to call and the endpoint_list_version being ("v2" or "v3"). It will return a dictionary with the response
+This returns the current access_token, which can be passed in to use in API calls
+
+`access_token = await sharesight.validate_token()`
+
+
+
+To make an API call (get): call .get_api_request(endpoint, endpoint_list_version), making the endpoint being what part you want to call and the endpoint_list_version being ("v2" or "v3"). It will return a dictionary with the response. 
+You are able to parse through the access_token, otherwise it will default to the current access token in the constructor
 
 example: `await sharesight.get_api_request("portfolios", "v2")`
+
+or
+
+example: `await sharesight.get_api_request("portfolios", "v2", access_token)`
 
 To make an API call (post): call .post_api_request, with the addition of parsing in a payload JSON to post
 
