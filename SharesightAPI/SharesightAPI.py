@@ -30,9 +30,7 @@ class SharesightAPI:
         self.token_expiry = None
         self.debugging = debugging
 
-    async def initialize(self):
-        if self.debugging:
-            logging.basicConfig(level=logging.DEBUG)
+    async def get_token_data(self):
         self.access_token, self.refresh_token, self.token_expiry, self.load_auth_code = await self.load_tokens()
 
     async def validate_token(self):
@@ -56,6 +54,7 @@ class SharesightAPI:
             return self.access_token
 
     async def refresh_access_token(self):
+        await self.get_token_data()  # Get current token data when refreshing
         payload = {
             'grant_type': 'refresh_token',
             'refresh_token': self.refresh_token,
