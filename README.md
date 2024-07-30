@@ -69,3 +69,4 @@ example: `await sharesight.post_api_request("portfolios", "v2", "{ "portfolio": 
 
 you can see a full list of v2 endpoints [here](https://portfolio.sharesight.com/api/2/doc/index.html), and v3 endpoints [here](https://portfolio.sharesight.com/api/3/doc/index.html) (including examples)
 
+Call `delete_token()` to remove the Token file from the instance (will cause a new auth_code to be needed)
