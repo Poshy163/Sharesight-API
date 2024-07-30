@@ -24,30 +24,37 @@ async def main():
     client_secret = ''
     authorization_code = ''
     portfolioID = ''
+    useEdge = False
+    endpoint_list_version = "v2"
+
     v2_endpoint_list = ["portfolios", "groups", f"portfolios/{portfolioID}/performance",
                         f"portfolios/{portfolioID}/valuation", "memberships",
                         f"portfolios/{portfolioID}/trades", f"portfolios/{portfolioID}/payouts", "cash_accounts",
                         "user_instruments", "currencies", "my_user.json"]
     v3_endpoint_list = ["portfolios"]
-    token_file = "sharesight_token.txt"
+    token_file = "HA.txt"
 
     # Fixed
     redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
     token_url = 'https://api.sharesight.com/oauth2/token'
     api_url_base = 'https://api.sharesight.com/api/'
+    edge_token_url = 'https://edge-api.sharesight.com/oauth2/token'
+    edge_api_url_base = 'https://edge-api.sharesight.com/api/'
 
     if redirect_uri == "" or api_url_base == "" or token_url == "":
         print("EMPTY REQUIREMENT STRING, ABORTING")
         exit(1)
 
-    sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url,
-                                             api_url_base, token_file, True)
+    if not useEdge:
+        sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url,
+                                                 api_url_base, token_file, True)
+    else:
+        sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri,
+                                                 edge_token_url,
+                                                 edge_api_url_base, token_file, True)
     while True:
         await sharesight.get_token_data()
         access_token = await sharesight.validate_token()
-
-        # Choose endpoint version
-        endpoint_list_version = "v2"
 
         combined_dict = {}
 

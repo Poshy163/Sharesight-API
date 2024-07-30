@@ -1,4 +1,5 @@
 import aiofiles
+import aiofiles.os
 import os
 import aiohttp
 import json
@@ -180,3 +181,6 @@ class SharesightAPI:
         }
         async with aiofiles.open(self.token_file, 'w') as file:
             await file.write(json.dumps(tokens))
+
+    async def delete_token(self):
+        await aiofiles.os.remove(self.token_file)
