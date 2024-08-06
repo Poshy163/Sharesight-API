@@ -12,6 +12,9 @@ This whole thing is designed to be asynchronous
 
 Added support for refresh token, no need to feed in clientID, clientSecret or authCode if token file exists
 
+This API was designed to handle all the tokens requirements, but you are able to manage it yourself, removing the need to use get_token_data() 
+and validate_token(), by passing the access token into get_api_request().
+
 # **How to install** #
 Do ```pip install SharesightAPI```
 

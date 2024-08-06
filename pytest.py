@@ -8,8 +8,6 @@ import aiofiles
 
 from SharesightAPI import SharesightAPI
 
-sys.dont_write_bytecode = True
-
 
 async def merge_dicts(d1: Dict[Any, Any], d2: Dict[Any, Any]) -> Dict[Any, Any]:
     for key in itertools.chain(d1.keys(), d2.keys()):
