@@ -13,6 +13,7 @@ class SharesightAPI:
     def __init__(self, client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
                  token_file="sharesight_token.txt", debugging=False):
         self.__client_id = client_id
+        self.__client_secret = client_secret
         self.__authorization_code = authorization_code
         self.__redirect_uri = redirect_uri
         self.__token_url = token_url

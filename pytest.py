@@ -1,7 +1,6 @@
 import asyncio
 import itertools
 import json
-import sys
 from typing import Dict, Any
 
 import aiofiles

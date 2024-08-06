@@ -18,9 +18,13 @@ and validate_token(), by passing the access token into get_api_request().
 # **How to install** #
 Do ```pip install SharesightAPI```
 
+# **How to test using pytest.py** #
+
+To test the API, run the pytest.py file, with the variables in blank filled in, it will loop and gather data every 60s until stopped
+
 # **How to get API token** #
 
-Read [here](https://portfolio.sharesight.com/api/) 
+Read [here](https://portfolio.sharesight.com/api/) (you may need to get in contact with them over live chat)
 
 # **Input/Output** #
 
