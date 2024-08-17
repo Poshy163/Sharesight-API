@@ -11,16 +11,14 @@ logger = logging.getLogger(__name__)
 
 class SharesightAPI:
     def __init__(self, client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
-                 token_file="sharesight_token.txt", debugging=False):
+                 token_file, debugging=False):
         self.__client_id = client_id
         self.__client_secret = client_secret
         self.__authorization_code = authorization_code
         self.__redirect_uri = redirect_uri
         self.__token_url = token_url
         self.__api_url_base = api_url_base
-        if token_file == "sharesight_token.txt":
-            self.__token_file = "sharesight_token.txt"
-        elif token_file == "HA.txt":
+        if token_file == "HA.txt":
             self.__token_file = f"sharesight_token_{self.__client_id}.txt"
         else:
             self.__token_file = token_file
@@ -84,7 +82,7 @@ class SharesightAPI:
                 else:
                     logger.info(f"Failed to refresh access token: {response.status}")
                     logger.info(await response.json())
-                    return None
+                    return response.status
 
     async def get_access_token(self):
         current_time = time.time()
@@ -112,13 +110,13 @@ class SharesightAPI:
                     return self.__access_token
                 elif response.status == 400:
                     logger.info(f"Failed to obtain access token: {response.status}")
-                    logger.info(f"Are you sure you filled out correct constructor information?")
+                    logger.info(f"Did you fill out the correct information?")
                     logger.info(await response.json())
-                    return None
+                    return response.status
                 else:
                     logger.info(f"Failed to obtain access token: {response.status}")
                     logger.info(await response.json())
-                    return None
+                    return response.status
 
     async def get_api_request(self, endpoint, endpoint_list_version, access_token=None):
 
@@ -136,13 +134,8 @@ class SharesightAPI:
                 if response.status == 200:
                     data = await response.json()
                     return data
-                elif response.status == 401:
-                    logger.info(f"API request failed: {response.status}")
-                    data = await response.json()
-                    logger.info(data)
-                    return None
                 else:
-                    logger.info(f"API request failed: {response.status}")
+                    logger.info(f"API GET request failed: {response.status}")
                     data = await response.json()
                     logger.info(data)
                     return data
@@ -161,6 +154,11 @@ class SharesightAPI:
                 if response.status == 200:
                     data = await response.json()
                     return data
+                elif response.status == 401:
+                    logger.info(f"API POST request failed: {response.status}")
+                    data = await response.json()
+                    logger.info(data)
+                    return response.status
                 else:
                     logger.info(f"API request failed: {response.status}")
                     data = await response.json()
