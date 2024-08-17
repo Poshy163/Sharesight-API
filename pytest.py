@@ -57,6 +57,9 @@ async def main():
     while True:
         await sharesight.get_token_data()
         access_token = await sharesight.validate_token()
+        token_data = await sharesight.return_token()
+        print("Passed token data is: ", token_data)
+        await sharesight.inject_token(token_data)
 
         combined_dict = {}
 

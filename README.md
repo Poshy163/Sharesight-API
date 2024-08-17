@@ -78,3 +78,17 @@ example: `await sharesight.post_api_request("portfolios", "v2", "{ "portfolio": 
 you can see a full list of v2 endpoints [here](https://portfolio.sharesight.com/api/2/doc/index.html), and v3 endpoints [here](https://portfolio.sharesight.com/api/3/doc/index.html) (including examples)
 
 Call `delete_token()` to remove the Token file from the instance (will cause a new auth_code to be needed)
+
+# **Manual Token Handling** #
+
+This is an alternative to saving the token in the current directory, this allows you to handle all the token functions.
+
+To store your own token data elsewhere, call `return_token()` to gets the currently saved token information, which can be called after the token is validated (see pytest for more details)
+
+(This removes the need for save_token and load_token methods, as you'll be handling it, but the token will still be refreshed)
+
+Token data is returned like this: 
+
+`{ 'auth_code': 12345, 'access_token': 12345, 'token_expiry': 12345, 'refresh_token': 12345 }`
+
+To then inject your token into the API, you need to call `inject_token(token_data)` where token_data is the token, in the same format as above

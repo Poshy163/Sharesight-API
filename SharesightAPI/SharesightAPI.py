@@ -98,6 +98,7 @@ class SharesightAPI:
         headers = {
             'Content-Type': 'application/json'
         }
+
         async with aiohttp.ClientSession() as session:
             async with session.post(self.__token_url, data=json.dumps(payload), headers=headers) as response:
                 if response.status == 200:
@@ -166,6 +167,14 @@ class SharesightAPI:
                     logger.info(data)
                     return data
 
+    async def inject_token(self, token_data):
+        if token_data:
+            self.__authorization_code = token_data.get('auth_code')
+            self.__access_token = token_data.get('access_token')
+            self.__token_expiry = token_data.get('token_expiry')
+            self.__refresh_token = token_data.get('refresh_token')
+            logger.info("Token Data Injected")
+
     async def load_tokens(self):
         if os.path.exists(self.__token_file):
             async with aiofiles.open(self.__token_file, 'r') as file:
@@ -183,6 +192,15 @@ class SharesightAPI:
         }
         async with aiofiles.open(self.__token_file, 'w') as file:
             await file.write(json.dumps(tokens))
+
+    async def return_token(self):
+        tokens = {
+            'auth_code': self.__authorization_code,
+            'access_token': self.__access_token,
+            'token_expiry': self.__token_expiry,
+            'refresh_token': self.__refresh_token
+        }
+        return tokens
 
     async def delete_token(self):
         await aiofiles.os.remove(self.__token_file)
