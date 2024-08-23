@@ -5,36 +5,58 @@ import aiohttp
 import json
 import time
 import logging
+from typing import Optional, Tuple, Any, Dict, Union
 
 logger = logging.getLogger(__name__)
 
 
 class SharesightAPI:
-    def __init__(self, client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
-                 token_file, debugging=False):
+    def __init__(self, client_id: str, client_secret: str, authorization_code: str,
+                 redirect_uri: str, token_url: str, api_url_base: str,
+                 token_file: Optional[str] = None, debugging: bool = False) -> None:
+        """
+        Initializes the API client with the necessary credentials and settings.
+
+        Parameters:
+        - client_id: The client ID for the API.
+        - client_secret: The client secret for the API.
+        - authorization_code: The authorization code for OAuth2.
+        - redirect_uri: The redirect URI registered with the API.
+        - token_url: The URL to obtain the OAuth2 token.
+        - api_url_base: The base URL for the API endpoints.
+        - token_file: Optional; the filename to store the token. Defaults to 'sharesight_token_<client_id>.txt' if not provided.
+        - debugging: Optional; enables debugging mode if set to True. Defaults to False.
+        """
         self.__client_id = client_id
         self.__client_secret = client_secret
         self.__authorization_code = authorization_code
         self.__redirect_uri = redirect_uri
         self.__token_url = token_url
         self.__api_url_base = api_url_base
-        if token_file == "HA.txt":
-            self.__token_file = f"sharesight_token_{self.__client_id}.txt"
-        else:
-            self.__token_file = token_file
-        self.__access_token = None
-        self.__refresh_token = None
-        self.__load_auth_code = None
-        self.__token_expiry = None
+        self.__token_file = token_file if token_file != "HA.txt" else f"sharesight_token_{self.__client_id}.txt"
+        self.__access_token: Optional[str] = None
+        self.__refresh_token: Optional[str] = None
+        self.__load_auth_code: Optional[str] = None
+        self.__token_expiry: Optional[float] = None
         self.__debugging = debugging
 
-    async def get_token_data(self):
+    async def get_token_data(self) -> None:
+        """
+        Loads token data (access token, refresh token, token expiry, and authorization code)
+        from the token file if it exists.
+        """
         if self.__debugging:
             logging.basicConfig(level=logging.DEBUG)
         self.__access_token, self.__refresh_token, self.__token_expiry, self.__load_auth_code = await self.load_tokens()
 
-    async def validate_token(self):
+    async def validate_token(self) -> Union[str, int]:
+        """
+        Validates the current access token. If the token is missing, invalid, or expired,
+        it will attempt to refresh or obtain a new access token.
 
+        Returns:
+        - The valid access token or the HTTP status code if the token refresh fails.
+        """
         if self.__authorization_code is None or self.__authorization_code == "":
             self.__authorization_code = self.__load_auth_code
 
@@ -57,7 +79,13 @@ class SharesightAPI:
             logger.info("ACCESS TOKEN VALID - PASSING")
             return self.__access_token
 
-    async def refresh_access_token(self):
+    async def refresh_access_token(self) -> Union[str, int]:
+        """
+        Refreshes the access token using the refresh token.
+
+        Returns:
+        - The new access token if successful or the HTTP status code if the refresh fails.
+        """
         await self.get_token_data()
         payload = {
             'grant_type': 'refresh_token',
@@ -84,7 +112,13 @@ class SharesightAPI:
                     logger.info(await response.json())
                     return response.status
 
-    async def get_access_token(self):
+    async def get_access_token(self) -> Union[str, int]:
+        """
+        Obtains a new access token using the authorization code.
+
+        Returns:
+        - The new access token if successful or the HTTP status code if the request fails.
+        """
         current_time = time.time()
         payload = {
             'grant_type': 'authorization_code',
@@ -118,8 +152,19 @@ class SharesightAPI:
                     logger.info(await response.json())
                     return response.status
 
-    async def get_api_request(self, endpoint, endpoint_list_version, access_token=None):
+    async def get_api_request(self, endpoint: str, endpoint_list_version: str,
+                              access_token: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Sends a GET request to the specified API endpoint.
 
+        Parameters:
+        - endpoint: The specific API endpoint to request.
+        - endpoint_list_version: The API version or list to use.
+        - access_token: Optional; the access token to use for authentication. Defaults to the stored access token.
+
+        Returns:
+        - The JSON response from the API as a dictionary.
+        """
         if access_token is None:
             access_token = self.__access_token
 
@@ -140,7 +185,20 @@ class SharesightAPI:
                     logger.info(data)
                     return data
 
-    async def post_api_request(self, endpoint, endpoint_list_version, payload, access_token=None):
+    async def post_api_request(self, endpoint: str, endpoint_list_version: str,
+                               payload: Dict[str, Any], access_token: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Sends a POST request to the specified API endpoint.
+
+        Parameters:
+        - endpoint: The specific API endpoint to request.
+        - endpoint_list_version: The API version or list to use.
+        - payload: The data to send in the POST request body.
+        - access_token: Optional; the access token to use for authentication. Defaults to the stored access token.
+
+        Returns:
+        - The JSON response from the API as a dictionary.
+        """
         if access_token is None:
             access_token = self.__access_token
         headers = {
@@ -158,47 +216,81 @@ class SharesightAPI:
                     logger.info(f"API POST request failed: {response.status}")
                     data = await response.json()
                     logger.info(data)
-                    return response.status
+                    return data
                 else:
                     logger.info(f"API request failed: {response.status}")
                     data = await response.json()
                     logger.info(data)
                     return data
 
-    async def inject_token(self, token_data):
+    async def inject_token(self, token_data: Dict[str, Any]) -> None:
+        """
+        Manually injects token data (access token, refresh token, etc.) into the API client.
+
+        Parameters:
+        - token_data: A dictionary containing the token data to inject.
+        """
         if token_data:
             self.__authorization_code = token_data.get('auth_code')
             self.__access_token = token_data.get('access_token')
             self.__token_expiry = token_data.get('token_expiry')
             self.__refresh_token = token_data.get('refresh_token')
-            logger.info("Token Data Injected")
+            await self.save_tokens()
 
-    async def load_tokens(self):
-        if os.path.exists(self.__token_file):
-            async with aiofiles.open(self.__token_file, 'r') as file:
-                content = await file.read()
-                tokens = json.loads(content)
-                return tokens['access_token'], tokens['refresh_token'], tokens['token_expiry'], tokens['auth_code']
-        return None, None, None, None
+    async def load_tokens(self) -> Tuple[Optional[str], Optional[str], Optional[float], Optional[str]]:
+        """
+        Loads token data from the token file if it exists.
 
-    async def save_tokens(self):
-        tokens = {
-            'auth_code': self.__authorization_code,
+        Returns:
+        - A tuple containing the access token, refresh token, token expiry, and authorization code.
+        """
+        if not os.path.isfile(self.__token_file):
+            logger.info(f"{self.__token_file} doesn't exist.")
+            return None, None, None, None
+
+        async with aiofiles.open(self.__token_file, mode='r') as file:
+            data = await file.read()
+
+        if not data:
+            return None, None, None, None
+
+        try:
+            tokens = json.loads(data)
+            access_token = tokens.get('access_token')
+            refresh_token = tokens.get('refresh_token')
+            token_expiry = tokens.get('token_expiry')
+            load_auth_code = tokens.get('auth_code')
+            return access_token, refresh_token, token_expiry, load_auth_code
+        except json.JSONDecodeError:
+            return None, None, None, None
+
+    async def save_tokens(self) -> None:
+        """
+        Saves the current token data (access token, refresh token, etc.) to the token file.
+        """
+        token_data = {
             'access_token': self.__access_token,
+            'refresh_token': self.__refresh_token,
             'token_expiry': self.__token_expiry,
-            'refresh_token': self.__refresh_token
+            'auth_code': self.__authorization_code
         }
-        async with aiofiles.open(self.__token_file, 'w') as file:
-            await file.write(json.dumps(tokens))
 
-    async def return_token(self):
-        tokens = {
-            'auth_code': self.__authorization_code,
+        async with aiofiles.open(self.__token_file, mode='w') as file:
+            await file.write(json.dumps(token_data))
+
+    async def return_token(self) -> Dict[str, Union[str, float]]:
+        """
+        Returns the current token data as a dictionary.
+
+        Returns:
+        - A dictionary containing the access token, refresh token, token expiry, and authorization code.
+        """
+        return {
             'access_token': self.__access_token,
+            'refresh_token': self.__refresh_token,
             'token_expiry': self.__token_expiry,
-            'refresh_token': self.__refresh_token
+            'auth_code': self.__authorization_code
         }
-        return tokens
 
     async def delete_token(self):
         await aiofiles.os.remove(self.__token_file)
