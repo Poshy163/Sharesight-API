@@ -152,7 +152,7 @@ class SharesightAPI:
                     logger.info(await response.json())
                     return response.status
 
-    async def get_api_request(self, endpoint: str, endpoint_list_version: str,
+    async def get_api_request(self, endpoint: list,
                               access_token: Optional[str] = None) -> Dict[str, Any]:
         """
         Sends a GET request to the specified API endpoint.
@@ -174,7 +174,7 @@ class SharesightAPI:
             'Content-Type': 'application/json'
         }
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.__api_url_base}{endpoint_list_version}/{endpoint}",
+            async with session.get(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}",
                                    headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -185,8 +185,8 @@ class SharesightAPI:
                     logger.info(data)
                     return data
 
-    async def post_api_request(self, endpoint: str, endpoint_list_version: str,
-                               payload: Dict[str, Any], access_token: Optional[str] = None) -> Dict[str, Any]:
+    async def post_api_request(self, endpoint: list, payload: Dict[str, Any],
+                               access_token: Optional[str] = None) -> Dict[str, Any]:
         """
         Sends a POST request to the specified API endpoint.
 
@@ -207,7 +207,7 @@ class SharesightAPI:
             'Accept': 'application/json'
         }
         async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.__api_url_base}{endpoint_list_version}/{endpoint}", headers=headers,
+            async with session.post(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}", headers=headers,
                                     json=payload) as response:
                 if response.status == 200:
                     data = await response.json()

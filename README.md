@@ -62,18 +62,18 @@ This returns the current access_token, which can be passed in to use in API call
 
 
 
-To make an API call (get): call .get_api_request(endpoint, endpoint_list_version), making the endpoint being what part you want to call and the endpoint_list_version being ("v2" or "v3"). It will return a dictionary with the response. 
+To make an API call (get): call .get_api_request(endpoint, endpoint_list_version), making the endpoint being a list of both the API version, and the call. It will return a dictionary with the response. 
 You are able to parse through the access_token, otherwise it will default to the current access token in the constructor
 
-example: `await sharesight.get_api_request("portfolios", "v2")`
+example: `await sharesight.get_api_request(["v2","portfolios"])`
 
 or
 
-example: `await sharesight.get_api_request("portfolios", "v2", access_token)`
+example: `await sharesight.get_api_request(["v2","portfolios"], access_token)`
 
 To make an API call (post): call .post_api_request, with the addition of parsing in a payload JSON to post
 
-example: `await sharesight.post_api_request("portfolios", "v2", "{ "portfolio": { "name": "My new Portfolio"}}")`
+example: `await sharesight.post_api_request(["v2","portfolios"], "{ "portfolio": { "name": "My new Portfolio"}})`
 
 you can see a full list of v2 endpoints [here](https://portfolio.sharesight.com/api/2/doc/index.html), and v3 endpoints [here](https://portfolio.sharesight.com/api/3/doc/index.html) (including examples)
 

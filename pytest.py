@@ -27,14 +27,21 @@ async def main():
     authorization_code = ''
     portfolioID = ''
     useEdge = False
-    endpoint_list_version = "v2"
-
-    v2_endpoint_list = ["portfolios", "groups", f"portfolios/{portfolioID}/performance",
-                        f"portfolios/{portfolioID}/valuation", "memberships",
-                        f"portfolios/{portfolioID}/trades", f"portfolios/{portfolioID}/payouts", "cash_accounts",
-                        "user_instruments", "currencies", "my_user.json"]
-    v3_endpoint_list = ["portfolios"]
     token_file = "HA.txt"
+
+    endpoint_list = [
+        ["v2", "portfolios"],
+        ["v2", "groups"],
+        ["v2", f"portfolios/{portfolioID}/performance"],
+        ["v2", f"portfolios/{portfolioID}/valuation"],
+        ["v2", f"portfolios/{portfolioID}/trades"],
+        ["v2", f"portfolios/{portfolioID}/payouts"],
+        ["v2", "cash_accounts"],
+        ["v2", "user_instruments"],
+        ["v2", "currencies"],
+        ["v2", "my_user.json"]
+
+    ]
 
     # Fixed
     redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
@@ -63,16 +70,10 @@ async def main():
 
         combined_dict = {}
 
-        if endpoint_list_version == "v2":
-            for endpoint in v2_endpoint_list:
-                print(f"\nCalling {endpoint}")
-                response = await sharesight.get_api_request(endpoint, endpoint_list_version, access_token)
-                combined_dict = await merge_dicts(combined_dict, response)
-        elif endpoint_list_version == "v3":
-            for endpoint in v3_endpoint_list:
-                print(f"\nCalling {endpoint}")
-                response = await sharesight.get_api_request(endpoint, endpoint_list_version, access_token)
-                combined_dict = await merge_dicts(combined_dict, response)
+        for endpoint in endpoint_list:
+            print(f"\nCalling {endpoint[1]}")
+            response = await sharesight.get_api_request(endpoint, access_token)
+            combined_dict = await merge_dicts(combined_dict, response)
 
         # Write the combined dictionary to an output.json file which is saved to the current directory
         async with aiofiles.open('output.json', 'w') as outfile:
