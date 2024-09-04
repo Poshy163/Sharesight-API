@@ -79,6 +79,8 @@ you can see a full list of v2 endpoints [here](https://portfolio.sharesight.com/
 
 Call `delete_token()` to remove the Token file from the instance (will cause a new auth_code to be needed)
 
+To close the connection, call `close()`
+
 # **Manual Token Handling** #
 
 This is an alternative to saving the token in the current directory, this allows you to handle all the token functions.
@@ -92,3 +94,4 @@ Token data is returned like this:
 `{ 'auth_code': 12345, 'access_token': 12345, 'token_expiry': 12345, 'refresh_token': 12345 }`
 
 To then inject your token into the API, you need to call `inject_token(token_data)` where token_data is the token, in the same format as above
+

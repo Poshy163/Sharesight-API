@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 class SharesightAPI:
     def __init__(self, client_id: str, client_secret: str, authorization_code: str,
                  redirect_uri: str, token_url: str, api_url_base: str,
-                 token_file: Optional[str] = None, debugging: bool = False) -> None:
+                 token_file: Optional[str] = None, debugging: bool = False,
+                 session: aiohttp.ClientSession | None = None) -> None:
         """
         Initializes the API client with the necessary credentials and settings.
 
@@ -39,6 +40,9 @@ class SharesightAPI:
         self.__load_auth_code: Optional[str] = None
         self.__token_expiry: Optional[float] = None
         self.__debugging = debugging
+
+        self.session = session or aiohttp.ClientSession()
+        self._created_session = not session
 
     async def get_token_data(self) -> None:
         """
@@ -153,7 +157,8 @@ class SharesightAPI:
                     return response.status
 
     async def get_api_request(self, endpoint: list,
-                              access_token: Optional[str] = None) -> Dict[str, Any]:
+                              access_token: Optional[str] = None,
+                              header: Optional[dict] = None) -> Dict[str, Any]:
         """
         Sends a GET request to the specified API endpoint.
 
@@ -173,17 +178,16 @@ class SharesightAPI:
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}",
-                                   headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    logger.info(f"API GET request failed: {response.status}")
-                    data = await response.json()
-                    logger.info(data)
-                    return data
+        async with self.session.get(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}",
+                                    headers=headers) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data
+            else:
+                logger.info(f"API GET request failed: {response.status}")
+                data = await response.json()
+                logger.info(data)
+                return data
 
     async def post_api_request(self, endpoint: list, payload: Dict[str, Any],
                                access_token: Optional[str] = None) -> Dict[str, Any]:
@@ -206,22 +210,21 @@ class SharesightAPI:
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}", headers=headers,
-                                    json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                elif response.status == 401:
-                    logger.info(f"API POST request failed: {response.status}")
-                    data = await response.json()
-                    logger.info(data)
-                    return data
-                else:
-                    logger.info(f"API request failed: {response.status}")
-                    data = await response.json()
-                    logger.info(data)
-                    return data
+        async with self.session.post(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}", headers=headers,
+                                     json=payload) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data
+            elif response.status == 401:
+                logger.info(f"API POST request failed: {response.status}")
+                data = await response.json()
+                logger.info(data)
+                return data
+            else:
+                logger.info(f"API request failed: {response.status}")
+                data = await response.json()
+                logger.info(data)
+                return data
 
     async def inject_token(self, token_data: Dict[str, Any]) -> None:
         """
@@ -294,3 +297,7 @@ class SharesightAPI:
 
     async def delete_token(self):
         await aiofiles.os.remove(self.__token_file)
+
+    async def close(self) -> None:
+        if self._created_session:
+            await self.session.close()
