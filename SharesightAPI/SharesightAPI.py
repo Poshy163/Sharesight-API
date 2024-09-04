@@ -1,3 +1,5 @@
+import itertools
+
 import aiofiles
 import aiofiles.os
 import os
@@ -6,6 +8,7 @@ import json
 import time
 import logging
 from typing import Optional, Tuple, Any, Dict, Union
+
 
 logger = logging.getLogger(__name__)
 
@@ -100,21 +103,21 @@ class SharesightAPI:
         headers = {
             'Content-Type': 'application/json'
         }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(self.__token_url, data=json.dumps(payload), headers=headers) as response:
-                if response.status == 200:
-                    token_data = await response.json()
-                    if self.__debugging:
-                        logger.info(f"Refresh_access_token response: {token_data}")
-                    self.__access_token = token_data['access_token']
-                    self.__refresh_token = token_data['refresh_token']
-                    self.__token_expiry = time.time() + token_data.get('expires_in', 1800)
-                    await self.save_tokens()
-                    return self.__access_token
-                else:
-                    logger.info(f"Failed to refresh access token: {response.status}")
-                    logger.info(await response.json())
-                    return response.status
+
+        async with self.session.post(self.__token_url, data=json.dumps(payload), headers=headers) as response:
+            if response.status == 200:
+                token_data = await response.json()
+                if self.__debugging:
+                    logger.info(f"Refresh_access_token response: {token_data}")
+                self.__access_token = token_data['access_token']
+                self.__refresh_token = token_data['refresh_token']
+                self.__token_expiry = time.time() + token_data.get('expires_in', 1800)
+                await self.save_tokens()
+                return self.__access_token
+            else:
+                logger.info(f"Failed to refresh access token: {response.status}")
+                logger.info(await response.json())
+                return response.status
 
     async def get_access_token(self) -> Union[str, int]:
         """
@@ -135,30 +138,29 @@ class SharesightAPI:
             'Content-Type': 'application/json'
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(self.__token_url, data=json.dumps(payload), headers=headers) as response:
-                if response.status == 200:
-                    token_data = await response.json()
-                    if self.__debugging:
-                        logger.info(f"get_access_token response: {token_data}")
-                    self.__access_token = token_data['access_token']
-                    self.__refresh_token = token_data['refresh_token']
-                    self.__token_expiry = current_time + token_data.get('expires_in', 1800)
-                    await self.save_tokens()
-                    return self.__access_token
-                elif response.status == 400:
-                    logger.info(f"Failed to obtain access token: {response.status}")
-                    logger.info(f"Did you fill out the correct information?")
-                    logger.info(await response.json())
-                    return response.status
-                else:
-                    logger.info(f"Failed to obtain access token: {response.status}")
-                    logger.info(await response.json())
-                    return response.status
+        async with self.session.post(self.__token_url, data=json.dumps(payload), headers=headers) as response:
+            if response.status == 200:
+                token_data = await response.json()
+                if self.__debugging:
+                    logger.info(f"get_access_token response: {token_data}")
+                self.__access_token = token_data['access_token']
+                self.__refresh_token = token_data['refresh_token']
+                self.__token_expiry = current_time + token_data.get('expires_in', 1800)
+                await self.save_tokens()
+                return self.__access_token
+            elif response.status == 400:
+                logger.info(f"Failed to obtain access token: {response.status}")
+                logger.info(f"Did you fill out the correct information?")
+                logger.info(await response.json())
+                return response.status
+            else:
+                logger.info(f"Failed to obtain access token: {response.status}")
+                logger.info(await response.json())
+                return response.status
 
     async def get_api_request(self, endpoint: list,
                               access_token: Optional[str] = None,
-                              header: Optional[dict] = None) -> Dict[str, Any]:
+                              header: Optional[dict] = "") -> Dict[str, Any]:
         """
         Sends a GET request to the specified API endpoint.
 
@@ -176,8 +178,9 @@ class SharesightAPI:
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
         }
+
         async with self.session.get(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}",
                                     headers=headers) as response:
             if response.status == 200:
@@ -300,4 +303,5 @@ class SharesightAPI:
 
     async def close(self) -> None:
         if self._created_session:
+            logger.info("Connection to SharesightAPI being closed")
             await self.session.close()
