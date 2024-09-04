@@ -47,6 +47,11 @@ async def main():
         ["v3", f"portfolios/{portfolioID}/performance"],
     ]
 
+    params_list = [
+        None,
+        {'include_sales': "true"}
+    ]
+
     # Fixed
     redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
     token_url = 'https://api.sharesight.com/oauth2/token'
@@ -73,10 +78,13 @@ async def main():
 
         combined_dict = {}
 
+        endpoint_index = 0
+
         for endpoint in endpoint_list:
             print(f"\nCalling {endpoint[1]}")
-            response = await sharesight.get_api_request(endpoint, access_token)
+            response = await sharesight.get_api_request(endpoint, access_token, params_list[endpoint_index])
             combined_dict = await merge_dicts(combined_dict, response)
+            endpoint_index += 1
 
         # Write the combined dictionary to an output.json file which is saved to the current directory
         async with aiofiles.open('output.json', 'w') as outfile:
@@ -87,7 +95,7 @@ async def main():
 
         value = combined_dict.get('report', "Cannot retrieve").get('value', "Cannot retrieve")
 
-        print(f"\nProfile Value is ${value} AUD")
+        print(f"\nProfile Value is ${value}")
 
     await sharesight.close()
 

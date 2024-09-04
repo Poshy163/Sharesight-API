@@ -1,5 +1,3 @@
-import itertools
-
 import aiofiles
 import aiofiles.os
 import os
@@ -8,7 +6,6 @@ import json
 import time
 import logging
 from typing import Optional, Tuple, Any, Dict, Union
-
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +157,7 @@ class SharesightAPI:
 
     async def get_api_request(self, endpoint: list,
                               access_token: Optional[str] = None,
-                              header: Optional[dict] = "") -> Dict[str, Any]:
+                              params: Optional[dict] = None) -> Dict[str, Any]:
         """
         Sends a GET request to the specified API endpoint.
 
@@ -182,7 +179,7 @@ class SharesightAPI:
         }
 
         async with self.session.get(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}",
-                                    headers=headers) as response:
+                                    headers=headers, params=params) as response:
             if response.status == 200:
                 data = await response.json()
                 return data
