@@ -47,7 +47,6 @@ async def main():
         ["v3", f"portfolios/{portfolioID}/performance", {'include_sales': "true"}],
     ]
 
-
     # Fixed
     redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
     token_url = 'https://api.sharesight.com/oauth2/token'
@@ -66,32 +65,35 @@ async def main():
         sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri,
                                                  edge_token_url,
                                                  edge_api_url_base, token_file, True)
-        await sharesight.get_token_data()
-        access_token = await sharesight.validate_token()
-        token_data = await sharesight.return_token()
-        print("Passed token data is: ", token_data)
-        await sharesight.inject_token(token_data)
+    await sharesight.get_token_data()
+    access_token = await sharesight.validate_token()
+    token_data = await sharesight.return_token()
+    print("Passed token data is: ", token_data)
+    await sharesight.inject_token(token_data)
 
-        combined_dict = {}
+    combined_dict = {}
 
-        endpoint_index = 0
+    endpoint_index = 0
 
-        for endpoint in endpoint_list:
-            print(f"\nCalling {endpoint[1]}")
-            response = await sharesight.get_api_request(endpoint, access_token)
-            combined_dict = await merge_dicts(combined_dict, response)
-            endpoint_index += 1
+    for endpoint in endpoint_list:
+        print(f"\nCalling {endpoint[1]}")
+        response = await sharesight.get_api_request(endpoint, access_token)
+        combined_dict = await merge_dicts(combined_dict, response)
+        endpoint_index += 1
 
-        # Write the combined dictionary to an output.json file which is saved to the current directory
-        async with aiofiles.open('output.json', 'w') as outfile:
-            await outfile.write(json.dumps(combined_dict, indent=1))
+    # Write the combined dictionary to an output.json file which is saved to the current directory
+    async with aiofiles.open('output.json', 'w') as outfile:
+        await outfile.write(json.dumps(combined_dict, indent=1))
 
         # Do something with the response json in this case, the name from the V3 API call
-        print(f"\nYour name is " + combined_dict.get('portfolios', [{}])[0].get('owner_name', "Cannot retrieve"))
+    print(f"\nYour name is " + combined_dict.get('portfolios', [{}])[0].get('owner_name', "Cannot retrieve"))
 
-        value = combined_dict.get('report', "Cannot retrieve").get('value', "Cannot retrieve")
+    value = combined_dict.get('report', "Cannot retrieve report").get('value', "Cannot retrieve value")
 
-        print(f"\nProfile Value is ${value}")
+    if value == "Cannot retrieve report" or value == "Cannot retrieve value":
+        print(value)
+    else:
+        print(f"\nPortfolio Value is ${value}")
 
     await sharesight.close()
 
