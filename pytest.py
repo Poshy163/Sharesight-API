@@ -43,14 +43,10 @@ async def main():
     ]
 
     endpoint_list = [
-        ["v3", "portfolios"],
-        ["v3", f"portfolios/{portfolioID}/performance"],
+        ["v3", "portfolios", None],
+        ["v3", f"portfolios/{portfolioID}/performance", {'include_sales': "true"}],
     ]
 
-    params_list = [
-        None,
-        {'include_sales': "true"}
-    ]
 
     # Fixed
     redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
@@ -82,7 +78,7 @@ async def main():
 
         for endpoint in endpoint_list:
             print(f"\nCalling {endpoint[1]}")
-            response = await sharesight.get_api_request(endpoint, access_token, params_list[endpoint_index])
+            response = await sharesight.get_api_request(endpoint, access_token)
             combined_dict = await merge_dicts(combined_dict, response)
             endpoint_index += 1
 

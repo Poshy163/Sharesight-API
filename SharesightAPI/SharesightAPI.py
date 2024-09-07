@@ -156,8 +156,7 @@ class SharesightAPI:
                 return response.status
 
     async def get_api_request(self, endpoint: list,
-                              access_token: Optional[str] = None,
-                              params: Optional[dict] = None) -> Dict[str, Any]:
+                              access_token: Optional[str] = None) -> Dict[str, Any]:
         """
         Sends a GET request to the specified API endpoint.
 
@@ -177,6 +176,8 @@ class SharesightAPI:
             'Accept': 'application/json',
             'Content-Type': 'application/json',
         }
+
+        params = endpoint[2]
 
         async with self.session.get(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}",
                                     headers=headers, params=params) as response:

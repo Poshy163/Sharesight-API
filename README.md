@@ -62,14 +62,14 @@ This returns the current access_token, which can be passed in to use in API call
 
 
 
-To make an API call (get): call .get_api_request(endpoint, endpoint_list_version), making the endpoint being a list of both the API version, and the call. It will return a dictionary with the response. 
-You are able to parse through the access_token, otherwise it will default to the current access token in the constructor
+To make an API call (get): call .get_api_request(endpoint, endpoint_list_version), making the endpoint being a list of the API version, the call URL, and the params if applicable. It will return a dictionary with the response. 
+You are able to parse through the access_token, otherwise it will default to the current access token in the constructor. 
 
-example: `await sharesight.get_api_request(["v2","portfolios"])`
+example: `await sharesight.get_api_request(["v2","portfolios", None])`
 
 or
 
-example: `await sharesight.get_api_request(["v2","portfolios"], access_token)`
+example: `await sharesight.get_api_request(["v2","portfolios", None], access_token)`
 
 To make an API call (post): call .post_api_request, with the addition of parsing in a payload JSON to post
 
