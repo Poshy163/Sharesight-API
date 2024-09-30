@@ -2,6 +2,7 @@ import asyncio
 import itertools
 import json
 from typing import Dict, Any
+from datetime import date
 
 import aiofiles
 
@@ -26,7 +27,7 @@ async def main():
     client_secret = ''
     authorization_code = ''
     portfolioID = ''
-    useEdge = False
+    useEdge = True
     token_file = "HA.txt"
 
     endpoint_list_full = [
@@ -43,8 +44,11 @@ async def main():
     ]
 
     endpoint_list = [
+        ["v2", f"portfolios/{portfolioID}/performance",
+         {'start_date': f"{date.today()}", 'end_date': f"{date.today()}"}],
         ["v3", "portfolios", None],
-        ["v3", f"portfolios/{portfolioID}/performance", {'include_sales': "true"}],
+        ["v3", f"portfolios/{portfolioID}/performance", None],
+
     ]
 
     # Fixed
@@ -78,6 +82,12 @@ async def main():
     for endpoint in endpoint_list:
         print(f"\nCalling {endpoint[1]}")
         response = await sharesight.get_api_request(endpoint, access_token)
+        if endpoint[0] == "v2":
+            response = {
+                'one-day': response
+            }
+
+        print(f"{response}")
         combined_dict = await merge_dicts(combined_dict, response)
         endpoint_index += 1
 
@@ -94,6 +104,8 @@ async def main():
         print(value)
     else:
         print(f"\nPortfolio Value is ${value}")
+        total_gain = combined_dict['one-day']['total_gain_percent']
+        print(f"\nGain today is {total_gain}%")
 
     await sharesight.close()
 

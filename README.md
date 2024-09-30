@@ -2,8 +2,8 @@
 
 API to interface with Sharesight's v2 API
 
-- Currently only supports push requests
-- Currently only supports as single portfolio request per instance called
+- Supports PUSH, PUT, DELETE and GET requests
+- Only supports a single portfolio request per instance of the API
 
 # **How to use** #
 See the pytest.py file for an example
@@ -20,7 +20,8 @@ Do ```pip install SharesightAPI```
 
 # **How to test using pytest.py** #
 
-To test the API, run the pytest.py file, with the variables in blank filled in, it will loop and gather data every 60s until stopped
+To test the API, run the pytest.py file, with the variables in blank filled in, it will update specific post specific
+data points to the console, and a json file with the output will be made
 
 # **How to get API token** #
 

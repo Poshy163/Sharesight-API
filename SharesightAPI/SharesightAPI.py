@@ -227,6 +227,82 @@ class SharesightAPI:
                 logger.info(data)
                 return data
 
+    async def delete_api_request(self, endpoint: list, payload: Optional[Dict[str, Any]] = None,
+                                 access_token: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Sends a DELETE request to the specified API endpoint.
+
+        Parameters:
+        - endpoint: The specific API endpoint to request.
+        - payload: Optional; the data to send in the DELETE request body.
+        - access_token: Optional; the access token to use for authentication. Defaults to the stored access token.
+
+        Returns:
+        - The JSON response from the API as a dictionary.
+        """
+        if access_token is None:
+            access_token = self.__access_token
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+
+        # Sending DELETE request with or without a payload
+        async with self.session.delete(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}",
+                                       headers=headers, json=payload) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data
+            elif response.status == 401:
+                logger.info(f"API DELETE request failed: {response.status}")
+                data = await response.json()
+                logger.info(data)
+                return data
+            else:
+                logger.info(f"API request failed: {response.status}")
+                data = await response.json()
+                logger.info(data)
+                return data
+
+    async def put_api_request(self, endpoint: list, payload: Dict[str, Any],
+                              access_token: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Sends a PUT request to the specified API endpoint.
+
+        Parameters:
+        - endpoint: The specific API endpoint to request.
+        - payload: The data to send in the PUT request body.
+        - access_token: Optional; the access token to use for authentication. Defaults to the stored access token.
+
+        Returns:
+        - The JSON response from the API as a dictionary.
+        """
+        if access_token is None:
+            access_token = self.__access_token
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+
+        # Sending PUT request
+        async with self.session.put(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}",
+                                    headers=headers, json=payload) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data
+            elif response.status == 401:
+                logger.info(f"API PUT request failed: {response.status}")
+                data = await response.json()
+                logger.info(data)
+                return data
+            else:
+                logger.info(f"API request failed: {response.status}")
+                data = await response.json()
+                logger.info(data)
+                return data
+
     async def inject_token(self, token_data: Dict[str, Any]) -> None:
         """
         Manually injects token data (access token, refresh token, etc.) into the API client.
