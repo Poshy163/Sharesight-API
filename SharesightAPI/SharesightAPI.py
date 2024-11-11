@@ -147,7 +147,7 @@ class SharesightAPI:
                     logger.info(f"get_access_token response: {token_data}")
                 self.__access_token = token_data['access_token']
                 self.__refresh_token = token_data['refresh_token']
-                self.__token_expiry = current_time + 10
+                self.__token_expiry = current_time + token_data.get('expires_in', 1800)
 
                 if self.__use_token_file:
                     await self.save_tokens()
