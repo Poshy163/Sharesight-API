@@ -31,7 +31,7 @@ Read [here](https://portfolio.sharesight.com/api/) (you may need to get in conta
 
 To start, call and assign (like this)
 
-`sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base, token_file, True)`
+`sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base, use_token_file, True, token_file_name)`
 
 Sharesight has some recommendations for defaults as seen [here](https://portfolio.sharesight.com/api/2/authentication_flow):
 

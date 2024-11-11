@@ -9,6 +9,15 @@ import aiofiles
 from SharesightAPI import SharesightAPI
 
 
+class MockConfigEntry:
+    def __init__(self, data=None):
+        self.data = data or {}
+
+    def async_update_entry(self, new_data):
+        self.data.update(new_data)
+        print("Updated config entry:", self.data)
+
+
 async def merge_dicts(d1: Dict[Any, Any], d2: Dict[Any, Any]) -> Dict[Any, Any]:
     for key in itertools.chain(d1.keys(), d2.keys()):
         if key in d1 and key in d2:
@@ -21,6 +30,7 @@ async def merge_dicts(d1: Dict[Any, Any], d2: Dict[Any, Any]) -> Dict[Any, Any]:
     return d1
 
 
+# This currently uses the local method, which means every reboot you need to place a new access token
 async def main():
     # User Customisable
     client_id = ''
@@ -29,26 +39,13 @@ async def main():
     portfolioID = ''
     useEdge = True
     token_file = "HA.txt"
-
-    endpoint_list_full = [
-        ["v3", "portfolios"],
-        ["v2", "groups"],
-        ["v3", f"portfolios/{portfolioID}/performance"],
-        ["v3", f"portfolios/{portfolioID}/valuation"],
-        ["v2", f"portfolios/{portfolioID}/trades"],
-        ["v2", f"portfolios/{portfolioID}/payouts"],
-        ["v2", "cash_accounts"],
-        ["v2", "user_instruments"],
-        ["v2", "currencies"],
-        ["v2", "my_user.json"]
-    ]
+    use_token_file = False
 
     endpoint_list = [
         ["v2", f"portfolios/{portfolioID}/performance",
          {'start_date': f"{date.today()}", 'end_date': f"{date.today()}"}],
         ["v3", "portfolios", None],
         ["v3", f"portfolios/{portfolioID}/performance", None],
-
     ]
 
     # Fixed
@@ -64,50 +61,56 @@ async def main():
 
     if not useEdge:
         sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url,
-                                                 api_url_base, token_file, True)
+                                                 api_url_base, use_token_file, token_file, True)
     else:
         sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri,
                                                  edge_token_url,
-                                                 edge_api_url_base, token_file, True)
-    await sharesight.get_token_data()
-    access_token = await sharesight.validate_token()
-    token_data = await sharesight.return_token()
-    print("Passed token data is: ", token_data)
-    await sharesight.inject_token(token_data)
+                                                 edge_api_url_base, use_token_file, token_file, True)
 
-    combined_dict = {}
+    while True:
 
-    endpoint_index = 0
+        access_token = await sharesight.validate_token()
+        token_data = await sharesight.return_token()
 
-    for endpoint in endpoint_list:
-        print(f"\nCalling {endpoint[1]}")
-        response = await sharesight.get_api_request(endpoint, access_token)
-        if endpoint[0] == "v2":
-            response = {
-                'one-day': response
-            }
+        config_entry = MockConfigEntry(data=token_data)
+        print("Initial config entry:", config_entry.data)
 
-        print(f"{response}")
-        combined_dict = await merge_dicts(combined_dict, response)
-        endpoint_index += 1
+        print("Passed token data is: ", token_data)
+        await sharesight.inject_token(config_entry.data)
 
-    # Write the combined dictionary to an output.json file which is saved to the current directory
-    async with aiofiles.open('output.json', 'w') as outfile:
-        await outfile.write(json.dumps(combined_dict, indent=1))
+        combined_dict = {}
 
-        # Do something with the response json in this case, the name from the V3 API call
-    print(f"\nYour name is " + combined_dict.get('portfolios', [{}])[0].get('owner_name', "Cannot retrieve"))
+        endpoint_index = 0
 
-    value = combined_dict.get('report', "Cannot retrieve report").get('value', "Cannot retrieve value")
+        for endpoint in endpoint_list:
+            print(f"\nCalling {endpoint[1]}")
+            response = await sharesight.get_api_request(endpoint, access_token)
+            if endpoint[0] == "v2":
+                response = {
+                    'one-day': response
+                }
 
-    if value == "Cannot retrieve report" or value == "Cannot retrieve value":
-        print(value)
-    else:
-        print(f"\nPortfolio Value is ${value}")
-        total_gain = combined_dict['one-day']['total_gain_percent']
-        print(f"\nGain today is {total_gain}%")
+            print(f"{response}")
+            combined_dict = await merge_dicts(combined_dict, response)
+            endpoint_index += 1
 
-    await sharesight.close()
+        # Write the combined dictionary to an output.json file which is saved to the current directory
+        async with aiofiles.open('output.json', 'w') as outfile:
+            await outfile.write(json.dumps(combined_dict, indent=1))
+
+            # Do something with the response json in this case, the name from the V3 API call
+        print(f"\nYour name is " + combined_dict.get('portfolios', [{}])[0].get('owner_name', "Cannot retrieve"))
+
+        value = combined_dict.get('report', "Cannot retrieve report").get('value', "Cannot retrieve value")
+
+        if value == "Cannot retrieve report" or value == "Cannot retrieve value":
+            print(value)
+        else:
+            print(f"\nPortfolio Value is ${value}")
+            total_gain = combined_dict['one-day']['total_gain_percent']
+            print(f"\nGain today is {total_gain}%")
+
+            await asyncio.sleep(5)
 
 
 asyncio.run(main())

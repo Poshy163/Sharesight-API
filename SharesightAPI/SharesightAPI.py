@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 class SharesightAPI:
     def __init__(self, client_id: str, client_secret: str, authorization_code: str,
-                 redirect_uri: str, token_url: str, api_url_base: str,
-                 token_file: Optional[str] = None, debugging: bool = False,
+                 redirect_uri: str, token_url: str, api_url_base: str, use_token_file: bool = True,
+                 debugging: bool = False, token_file_name: Optional[str] = None,
                  session: aiohttp.ClientSession | None = None) -> None:
         """
         Initializes the API client with the necessary credentials and settings.
@@ -25,8 +25,9 @@ class SharesightAPI:
         - redirect_uri: The redirect URI registered with the API.
         - token_url: The URL to obtain the OAuth2 token.
         - api_url_base: The base URL for the API endpoints.
-        - token_file: Optional; the filename to store the token. Defaults to 'sharesight_token_<client_id>.txt' if not provided.
+        - use_token_file: Make a default token file, or not. True by default, set false to manage the token data yourself
         - debugging: Optional; enables debugging mode if set to True. Defaults to False.
+        - token_file_name: Optional; the filename to store the token. Defaults to 'sharesight_token_<client_id>.txt' if not provided.
         """
         self.__client_id = client_id
         self.__client_secret = client_secret
@@ -34,7 +35,8 @@ class SharesightAPI:
         self.__redirect_uri = redirect_uri
         self.__token_url = token_url
         self.__api_url_base = api_url_base
-        self.__token_file = token_file if token_file != "HA.txt" else f"sharesight_token_{self.__client_id}.txt"
+        self.__use_token_file = use_token_file
+        self.__token_file = token_file_name if token_file_name != "HA.txt" else f"sharesight_token_{self.__client_id}.txt"
         self.__access_token: Optional[str] = None
         self.__refresh_token: Optional[str] = None
         self.__load_auth_code: Optional[str] = None
@@ -71,10 +73,10 @@ class SharesightAPI:
             logger.info(f"TOKEN REFRESH TIME: {self.__token_expiry}\n")
 
         if self.__access_token is None:
-            logger.info("NO TOKEN FILE FOUND - GENERATING NEW")
+            logger.info("NO TOKEN FILE/CONFIG  FOUND - GENERATING NEW")
             return await self.get_access_token()
         elif not self.__access_token:
-            logger.info("TOKEN FILE INVALID - GENERATING NEW")
+            logger.info("TOKEN TOKEN FILE/CONFIG INVALID - GENERATING NEW")
             return await self.refresh_access_token()
         elif current_time >= self.__token_expiry:
             logger.info("ACCESS TOKEN EXPIRED - GENERATING NEW")
@@ -90,7 +92,9 @@ class SharesightAPI:
         Returns:
         - The new access token if successful or the HTTP status code if the refresh fails.
         """
-        await self.get_token_data()
+        if self.__use_token_file:
+            await self.get_token_data()
+
         payload = {
             'grant_type': 'refresh_token',
             'refresh_token': self.__refresh_token,
@@ -109,8 +113,9 @@ class SharesightAPI:
                 self.__access_token = token_data['access_token']
                 self.__refresh_token = token_data['refresh_token']
                 self.__token_expiry = time.time() + token_data.get('expires_in', 1800)
-                await self.save_tokens()
-                return self.__access_token
+                if self.__use_token_file:
+                    await self.save_tokens()
+                    return self.__access_token
             else:
                 logger.info(f"Failed to refresh access token: {response.status}")
                 logger.info(await response.json())
@@ -142,9 +147,11 @@ class SharesightAPI:
                     logger.info(f"get_access_token response: {token_data}")
                 self.__access_token = token_data['access_token']
                 self.__refresh_token = token_data['refresh_token']
-                self.__token_expiry = current_time + token_data.get('expires_in', 1800)
-                await self.save_tokens()
-                return self.__access_token
+                self.__token_expiry = current_time + 10
+
+                if self.__use_token_file:
+                    await self.save_tokens()
+                    return self.__access_token
             elif response.status == 400:
                 logger.info(f"Failed to obtain access token: {response.status}")
                 logger.info(f"Did you fill out the correct information?")
@@ -315,7 +322,8 @@ class SharesightAPI:
             self.__access_token = token_data.get('access_token')
             self.__token_expiry = token_data.get('token_expiry')
             self.__refresh_token = token_data.get('refresh_token')
-            await self.save_tokens()
+            if self.__use_token_file:
+                await self.save_tokens()
 
     async def load_tokens(self) -> Tuple[Optional[str], Optional[str], Optional[float], Optional[str]]:
         """
