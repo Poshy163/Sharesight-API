@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:portfolio.sharesight.com)",
+      "Bash(python -c:*)",
+      "Bash(pip install:*)"
+    ]
+  }
+}

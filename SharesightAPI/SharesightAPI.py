@@ -1,3 +1,4 @@
+import asyncio
 import aiofiles
 import aiofiles.os
 import os
@@ -7,14 +8,31 @@ import time
 import logging
 from typing import Optional, Tuple, Any, Dict, Union
 
+from .exceptions import (
+    SharesightAPIError,
+    SharesightAuthError,
+    SharesightRateLimitError,
+)
+
 logger = logging.getLogger(__name__)
+
+
+def _redact_token_data(data: dict) -> dict:
+    """Return a copy of token data with sensitive values redacted."""
+    redacted = dict(data)
+    for key in ('access_token', 'refresh_token'):
+        if key in redacted and redacted[key]:
+            value = str(redacted[key])
+            redacted[key] = value[:4] + '...' + value[-4:] if len(value) > 8 else '***'
+    return redacted
 
 
 class SharesightAPI:
     def __init__(self, client_id: str, client_secret: str, authorization_code: str,
                  redirect_uri: str, token_url: str, api_url_base: str, use_token_file: bool = True,
                  debugging: bool = False, token_file_name: Optional[str] = None,
-                 session: aiohttp.ClientSession | None = None) -> None:
+                 session: aiohttp.ClientSession | None = None,
+                 max_retries: int = 3, retry_backoff: float = 1.0) -> None:
         """
         Initializes the API client with the necessary credentials and settings.
 
@@ -28,6 +46,9 @@ class SharesightAPI:
         - use_token_file: Make a default token file, or not. True by default, set false to manage the token data yourself
         - debugging: Optional; enables debugging mode if set to True. Defaults to False.
         - token_file_name: Optional; the filename to store the token. Defaults to 'sharesight_token_<client_id>.txt' if not provided.
+        - session: Optional; an existing aiohttp.ClientSession to reuse.
+        - max_retries: Maximum number of retries for transient errors (429, 500, 502, 503). Defaults to 3.
+        - retry_backoff: Base backoff time in seconds for retries (exponential). Defaults to 1.0.
         """
         self.__client_id = client_id
         self.__client_secret = client_secret
@@ -36,15 +57,24 @@ class SharesightAPI:
         self.__token_url = token_url
         self.__api_url_base = api_url_base
         self.__use_token_file = use_token_file
-        self.__token_file = token_file_name if token_file_name != "HA.txt" else f"sharesight_token_{self.__client_id}.txt"
+        self.__token_file = token_file_name or f"sharesight_token_{self.__client_id}.txt"
         self.__access_token: Optional[str] = None
         self.__refresh_token: Optional[str] = None
         self.__load_auth_code: Optional[str] = None
         self.__token_expiry: Optional[float] = None
         self.__debugging = debugging
+        self.__max_retries = max_retries
+        self.__retry_backoff = retry_backoff
+        self.__tokens_loaded = False
 
         self.session = session or aiohttp.ClientSession()
         self._created_session = not session
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        await self.close()
 
     async def get_token_data(self) -> None:
         """
@@ -54,6 +84,7 @@ class SharesightAPI:
         if self.__debugging:
             logging.basicConfig(level=logging.DEBUG)
         self.__access_token, self.__refresh_token, self.__token_expiry, self.__load_auth_code = await self.load_tokens()
+        self.__tokens_loaded = True
 
     async def validate_token(self) -> Union[str, int]:
         """
@@ -63,6 +94,9 @@ class SharesightAPI:
         Returns:
         - The valid access token or the HTTP status code if the token refresh fails.
         """
+        if self.__use_token_file and not self.__tokens_loaded:
+            await self.get_token_data()
+
         if self.__authorization_code is None or self.__authorization_code == "":
             self.__authorization_code = self.__load_auth_code
 
@@ -109,16 +143,19 @@ class SharesightAPI:
             if response.status == 200:
                 token_data = await response.json()
                 if self.__debugging:
-                    logger.info(f"Refresh_access_token response: {token_data}")
+                    logger.info(f"Refresh_access_token response: {_redact_token_data(token_data)}")
                 self.__access_token = token_data['access_token']
                 self.__refresh_token = token_data['refresh_token']
                 self.__token_expiry = time.time() + token_data.get('expires_in', 1800)
                 if self.__use_token_file:
                     await self.save_tokens()
-                    return self.__access_token
+                return self.__access_token
             else:
                 logger.info(f"Failed to refresh access token: {response.status}")
-                logger.info(await response.json())
+                try:
+                    logger.info(await response.json())
+                except Exception:
+                    logger.info(await response.text())
                 return response.status
 
     async def get_access_token(self) -> Union[str, int]:
@@ -144,33 +181,41 @@ class SharesightAPI:
             if response.status == 200:
                 token_data = await response.json()
                 if self.__debugging:
-                    logger.info(f"get_access_token response: {token_data}")
+                    logger.info(f"get_access_token response: {_redact_token_data(token_data)}")
                 self.__access_token = token_data['access_token']
                 self.__refresh_token = token_data['refresh_token']
                 self.__token_expiry = current_time + token_data.get('expires_in', 1800)
 
                 if self.__use_token_file:
                     await self.save_tokens()
-                    return self.__access_token
+                return self.__access_token
             elif response.status == 400:
                 logger.info(f"Failed to obtain access token: {response.status}")
                 logger.info(f"Did you fill out the correct information?")
-                logger.info(await response.json())
+                try:
+                    logger.info(await response.json())
+                except Exception:
+                    logger.info(await response.text())
                 return response.status
             else:
                 logger.info(f"Failed to obtain access token: {response.status}")
-                logger.info(await response.json())
+                try:
+                    logger.info(await response.json())
+                except Exception:
+                    logger.info(await response.text())
                 return response.status
 
-    async def get_api_request(self, endpoint: list,
-                              access_token: Optional[str] = None) -> Dict[str, Any]:
+    async def _request(self, method: str, endpoint: list, payload: Optional[Dict[str, Any]] = None,
+                       access_token: Optional[str] = None) -> Dict[str, Any]:
         """
-        Sends a GET request to the specified API endpoint.
+        Internal method that handles all API requests with common logic for headers,
+        URL construction, response parsing, error handling, and retry with exponential backoff.
 
         Parameters:
-        - endpoint: The specific API endpoint to request.
-        - endpoint_list_version: The API version or list to use.
-        - access_token: Optional; the access token to use for authentication. Defaults to the stored access token.
+        - method: HTTP method (GET, POST, PUT, DELETE, PATCH).
+        - endpoint: A list of [version, path, params].
+        - payload: Optional; the data to send in the request body.
+        - access_token: Optional; the access token to use for authentication.
 
         Returns:
         - The JSON response from the API as a dictionary.
@@ -184,18 +229,64 @@ class SharesightAPI:
             'Content-Type': 'application/json',
         }
 
-        params = endpoint[2]
+        url = f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}"
+        params = endpoint[2] if len(endpoint) > 2 else None
 
-        async with self.session.get(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}",
-                                    headers=headers, params=params) as response:
-            if response.status == 200:
-                data = await response.json()
-                return data
-            else:
-                logger.info(f"API GET request failed: {response.status}")
-                data = await response.json()
+        retryable_statuses = {429, 500, 502, 503}
+
+        for attempt in range(self.__max_retries + 1):
+            kwargs = {'headers': headers}
+            if method.upper() == 'GET':
+                kwargs['params'] = params
+            elif payload is not None:
+                kwargs['json'] = payload
+
+            async with self.session.request(method, url, **kwargs) as response:
+                # Try to parse JSON response
+                try:
+                    data = await response.json()
+                except Exception:
+                    data = {'error': await response.text(), 'status_code': response.status}
+
+                if response.status == 200:
+                    return data
+
+                # Handle retryable errors
+                if response.status in retryable_statuses and attempt < self.__max_retries:
+                    if response.status == 429:
+                        retry_after = response.headers.get('Retry-After')
+                        if retry_after:
+                            wait_time = float(retry_after)
+                        else:
+                            wait_time = self.__retry_backoff * (2 ** attempt)
+                        logger.info(f"Rate limited (429). Retrying in {wait_time}s (attempt {attempt + 1}/{self.__max_retries})")
+                    else:
+                        wait_time = self.__retry_backoff * (2 ** attempt)
+                        logger.info(f"Server error ({response.status}). Retrying in {wait_time}s (attempt {attempt + 1}/{self.__max_retries})")
+                    await asyncio.sleep(wait_time)
+                    continue
+
+                # Non-retryable or exhausted retries
+                logger.info(f"API {method.upper()} request failed: {response.status}")
                 logger.info(data)
                 return data
+
+        # Should not reach here, but just in case
+        return data
+
+    async def get_api_request(self, endpoint: list,
+                              access_token: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Sends a GET request to the specified API endpoint.
+
+        Parameters:
+        - endpoint: The specific API endpoint to request as [version, path, params].
+        - access_token: Optional; the access token to use for authentication. Defaults to the stored access token.
+
+        Returns:
+        - The JSON response from the API as a dictionary.
+        """
+        return await self._request('GET', endpoint, access_token=access_token)
 
     async def post_api_request(self, endpoint: list, payload: Dict[str, Any],
                                access_token: Optional[str] = None) -> Dict[str, Any]:
@@ -203,74 +294,14 @@ class SharesightAPI:
         Sends a POST request to the specified API endpoint.
 
         Parameters:
-        - endpoint: The specific API endpoint to request.
-        - endpoint_list_version: The API version or list to use.
+        - endpoint: The specific API endpoint to request as [version, path, params].
         - payload: The data to send in the POST request body.
         - access_token: Optional; the access token to use for authentication. Defaults to the stored access token.
 
         Returns:
         - The JSON response from the API as a dictionary.
         """
-        if access_token is None:
-            access_token = self.__access_token
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-        async with self.session.post(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}", headers=headers,
-                                     json=payload) as response:
-            if response.status == 200:
-                data = await response.json()
-                return data
-            elif response.status == 401:
-                logger.info(f"API POST request failed: {response.status}")
-                data = await response.json()
-                logger.info(data)
-                return data
-            else:
-                logger.info(f"API request failed: {response.status}")
-                data = await response.json()
-                logger.info(data)
-                return data
-
-    async def delete_api_request(self, endpoint: list, payload: Optional[Dict[str, Any]] = None,
-                                 access_token: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Sends a DELETE request to the specified API endpoint.
-
-        Parameters:
-        - endpoint: The specific API endpoint to request.
-        - payload: Optional; the data to send in the DELETE request body.
-        - access_token: Optional; the access token to use for authentication. Defaults to the stored access token.
-
-        Returns:
-        - The JSON response from the API as a dictionary.
-        """
-        if access_token is None:
-            access_token = self.__access_token
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-
-        # Sending DELETE request with or without a payload
-        async with self.session.delete(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}",
-                                       headers=headers, json=payload) as response:
-            if response.status == 200:
-                data = await response.json()
-                return data
-            elif response.status == 401:
-                logger.info(f"API DELETE request failed: {response.status}")
-                data = await response.json()
-                logger.info(data)
-                return data
-            else:
-                logger.info(f"API request failed: {response.status}")
-                data = await response.json()
-                logger.info(data)
-                return data
+        return await self._request('POST', endpoint, payload=payload, access_token=access_token)
 
     async def put_api_request(self, endpoint: list, payload: Dict[str, Any],
                               access_token: Optional[str] = None) -> Dict[str, Any]:
@@ -278,37 +309,93 @@ class SharesightAPI:
         Sends a PUT request to the specified API endpoint.
 
         Parameters:
-        - endpoint: The specific API endpoint to request.
+        - endpoint: The specific API endpoint to request as [version, path, params].
         - payload: The data to send in the PUT request body.
         - access_token: Optional; the access token to use for authentication. Defaults to the stored access token.
 
         Returns:
         - The JSON response from the API as a dictionary.
         """
-        if access_token is None:
-            access_token = self.__access_token
-        headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
+        return await self._request('PUT', endpoint, payload=payload, access_token=access_token)
 
-        # Sending PUT request
-        async with self.session.put(f"{self.__api_url_base}{endpoint[0]}/{endpoint[1]}",
-                                    headers=headers, json=payload) as response:
-            if response.status == 200:
-                data = await response.json()
-                return data
-            elif response.status == 401:
-                logger.info(f"API PUT request failed: {response.status}")
-                data = await response.json()
-                logger.info(data)
-                return data
-            else:
-                logger.info(f"API request failed: {response.status}")
-                data = await response.json()
-                logger.info(data)
-                return data
+    async def delete_api_request(self, endpoint: list, payload: Optional[Dict[str, Any]] = None,
+                                 access_token: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Sends a DELETE request to the specified API endpoint.
+
+        Parameters:
+        - endpoint: The specific API endpoint to request as [version, path, params].
+        - payload: Optional; the data to send in the DELETE request body.
+        - access_token: Optional; the access token to use for authentication. Defaults to the stored access token.
+
+        Returns:
+        - The JSON response from the API as a dictionary.
+        """
+        return await self._request('DELETE', endpoint, payload=payload, access_token=access_token)
+
+    async def patch_api_request(self, endpoint: list, payload: Dict[str, Any],
+                                access_token: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Sends a PATCH request to the specified API endpoint.
+
+        Parameters:
+        - endpoint: The specific API endpoint to request as [version, path, params].
+        - payload: The data to send in the PATCH request body.
+        - access_token: Optional; the access token to use for authentication. Defaults to the stored access token.
+
+        Returns:
+        - The JSON response from the API as a dictionary.
+        """
+        return await self._request('PATCH', endpoint, payload=payload, access_token=access_token)
+
+    # --- Convenience methods ---
+
+    async def list_portfolios(self) -> dict:
+        """List all portfolios accessible by the authenticated user."""
+        return await self._request('GET', ['v2', 'portfolios', None])
+
+    async def get_portfolio(self, portfolio_id) -> dict:
+        """Get details of a specific portfolio."""
+        return await self._request('GET', ['v2', f'portfolios/{portfolio_id}', None])
+
+    async def get_portfolio_performance(self, portfolio_id, start_date=None, end_date=None) -> dict:
+        """Get performance data for a portfolio, optionally filtered by date range."""
+        params = {}
+        if start_date:
+            params['start_date'] = str(start_date)
+        if end_date:
+            params['end_date'] = str(end_date)
+        return await self._request('GET', ['v2', f'portfolios/{portfolio_id}/performance', params or None])
+
+    async def list_holdings(self, portfolio_id) -> dict:
+        """List all holdings in a portfolio."""
+        return await self._request('GET', ['v2', f'portfolios/{portfolio_id}/holdings', None])
+
+    async def get_holding(self, holding_id) -> dict:
+        """Get details of a specific holding."""
+        return await self._request('GET', ['v2', f'holdings/{holding_id}', None])
+
+    async def list_trades(self, portfolio_id) -> dict:
+        """List all trades in a portfolio."""
+        return await self._request('GET', ['v2', f'portfolios/{portfolio_id}/trades', None])
+
+    async def create_trade(self, portfolio_id, trade_data: dict) -> dict:
+        """Create a new trade in a portfolio."""
+        return await self._request('POST', ['v2', f'portfolios/{portfolio_id}/trades', None], payload=trade_data)
+
+    async def list_cash_accounts(self) -> dict:
+        """List all cash accounts."""
+        return await self._request('GET', ['v2', 'cash_accounts', None])
+
+    async def get_cash_account(self, cash_account_id) -> dict:
+        """Get details of a specific cash account."""
+        return await self._request('GET', ['v2', f'cash_accounts/{cash_account_id}', None])
+
+    async def list_groups(self) -> dict:
+        """List all groups."""
+        return await self._request('GET', ['v2', 'groups', None])
+
+    # --- Token management ---
 
     async def inject_token(self, token_data: Dict[str, Any]) -> None:
         """

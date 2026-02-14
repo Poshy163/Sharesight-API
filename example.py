@@ -30,7 +30,6 @@ async def merge_dicts(d1: Dict[Any, Any], d2: Dict[Any, Any]) -> Dict[Any, Any]:
     return d1
 
 
-# This currently uses the local method, which means every reboot you need to place a new access token
 async def main():
     # User Customisable
     client_id = ''
@@ -38,15 +37,7 @@ async def main():
     authorization_code = ''
     portfolioID = ''
     useEdge = True
-    token_file = "HA.txt"
     use_token_file = False
-
-    endpoint_list = [
-        ["v2", f"portfolios/{portfolioID}/performance",
-         {'start_date': f"{date.today()}", 'end_date': f"{date.today()}"}],
-        ["v3", "portfolios", None],
-        ["v3", f"portfolios/{portfolioID}/performance", None],
-    ]
 
     # Fixed
     redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
@@ -59,28 +50,41 @@ async def main():
         print("EMPTY REQUIREMENT STRING, ABORTING")
         exit(1)
 
-    if not useEdge:
-        sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url,
-                                                 api_url_base, use_token_file, token_file, True)
-    else:
-        sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri,
-                                                 edge_token_url,
-                                                 edge_api_url_base, use_token_file, token_file, True)
+    selected_token_url = edge_token_url if useEdge else token_url
+    selected_api_url = edge_api_url_base if useEdge else api_url_base
 
-    while True:
+    # --- Example using context manager and convenience methods ---
+    async with SharesightAPI.SharesightAPI(
+        client_id, client_secret, authorization_code, redirect_uri,
+        selected_token_url, selected_api_url, use_token_file, debugging=True
+    ) as sharesight:
 
         access_token = await sharesight.validate_token()
         token_data = await sharesight.return_token()
+        print("Token data:", token_data)
 
-        config_entry = MockConfigEntry(data=token_data)
-        print("Initial config entry:", config_entry.data)
+        # Convenience methods
+        portfolios = await sharesight.list_portfolios()
+        print("\nPortfolios:", portfolios)
 
-        print("Passed token data is: ", token_data)
-        await sharesight.inject_token(config_entry.data)
+        if portfolioID:
+            performance = await sharesight.get_portfolio_performance(
+                portfolioID, start_date=date.today(), end_date=date.today()
+            )
+            print(f"\nPerformance: {performance}")
+
+            holdings = await sharesight.list_holdings(portfolioID)
+            print(f"\nHoldings: {holdings}")
+
+        # --- Alternative: endpoint list style (backward compatible) ---
+        endpoint_list = [
+            ["v2", f"portfolios/{portfolioID}/performance",
+             {'start_date': f"{date.today()}", 'end_date': f"{date.today()}"}],
+            ["v3", "portfolios", None],
+            ["v3", f"portfolios/{portfolioID}/performance", None],
+        ]
 
         combined_dict = {}
-
-        endpoint_index = 0
 
         for endpoint in endpoint_list:
             print(f"\nCalling {endpoint[1]}")
@@ -92,13 +96,11 @@ async def main():
 
             print(f"{response}")
             combined_dict = await merge_dicts(combined_dict, response)
-            endpoint_index += 1
 
-        # Write the combined dictionary to an output.json file which is saved to the current directory
+        # Write the combined dictionary to an output.json file
         async with aiofiles.open('output.json', 'w') as outfile:
             await outfile.write(json.dumps(combined_dict, indent=1))
 
-            # Do something with the response json in this case, the name from the V3 API call
         print(f"\nYour name is " + combined_dict.get('portfolios', [{}])[0].get('owner_name', "Cannot retrieve"))
 
         value = combined_dict.get('report', "Cannot retrieve report").get('value', "Cannot retrieve value")
@@ -109,8 +111,6 @@ async def main():
             print(f"\nPortfolio Value is ${value}")
             total_gain = combined_dict['one-day']['total_gain_percent']
             print(f"\nGain today is {total_gain}%")
-
-            await asyncio.sleep(5)
 
 
 asyncio.run(main())
