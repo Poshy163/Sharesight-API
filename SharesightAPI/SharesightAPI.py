@@ -69,6 +69,7 @@ class SharesightAPI:
 
         self.session = session or aiohttp.ClientSession()
         self._created_session = not session
+        self._closed = False
 
     async def __aenter__(self):
         return self
@@ -233,43 +234,59 @@ class SharesightAPI:
         params = endpoint[2] if len(endpoint) > 2 else None
 
         retryable_statuses = {429, 500, 502, 503}
+        data = None
 
         for attempt in range(self.__max_retries + 1):
-            kwargs = {'headers': headers}
-            if method.upper() == 'GET':
-                kwargs['params'] = params
-            elif payload is not None:
-                kwargs['json'] = payload
+            try:
+                kwargs = {'headers': headers}
+                if method.upper() == 'GET':
+                elif payload is not None:
+                    kwargs['json'] = payload
 
-            async with self.session.request(method, url, **kwargs) as response:
-                # Try to parse JSON response
-                try:
-                    data = await response.json()
-                except Exception:
-                    data = {'error': await response.text(), 'status_code': response.status}
+                async with self.session.request(method, url, **kwargs) as response:
+                    # Try to parse JSON response
+                    try:
+                        data = await response.json()
+                    except Exception:
+                        data = {'error': await response.text(), 'status_code': response.status}
 
-                if response.status == 200:
-                    return data
+                    if response.status == 200:
+                        return data
 
-                # Handle retryable errors
-                if response.status in retryable_statuses and attempt < self.__max_retries:
-                    if response.status == 429:
-                        retry_after = response.headers.get('Retry-After')
-                        if retry_after:
-                            wait_time = float(retry_after)
+                    # Handle retryable errors
+                    if response.status in retryable_statuses and attempt < self.__max_retries:
+                        if response.status == 429:
+                            retry_after = response.headers.get('Retry-After')
+                            if retry_after:
+                                wait_time = float(retry_after)
+                            else:
+                                wait_time = self.__retry_backoff * (2 ** attempt)
+                            logger.info(f"Rate limited (429). Retrying in {wait_time}s (attempt {attempt + 1}/{self.__max_retries})")
                         else:
                             wait_time = self.__retry_backoff * (2 ** attempt)
-                        logger.info(f"Rate limited (429). Retrying in {wait_time}s (attempt {attempt + 1}/{self.__max_retries})")
-                    else:
-                        wait_time = self.__retry_backoff * (2 ** attempt)
-                        logger.info(f"Server error ({response.status}). Retrying in {wait_time}s (attempt {attempt + 1}/{self.__max_retries})")
+                            logger.info(f"Server error ({response.status}). Retrying in {wait_time}s (attempt {attempt + 1}/{self.__max_retries})")
+                        await asyncio.sleep(wait_time)
+                        continue
+
+                    # Non-retryable or exhausted retries
+                    logger.info(f"API {method.upper()} request failed: {response.status}")
+                    logger.info(data)
+                    return data
+
+            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as conn_err:
+                if attempt < self.__max_retries:
+                    wait_time = self.__retry_backoff * (2 ** attempt)
+                    logger.info(
+                        f"Connection error ({type(conn_err).__name__}: {conn_err}). "
+                        f"Retrying in {wait_time}s (attempt {attempt + 1}/{self.__max_retries})"
+                    )
                     await asyncio.sleep(wait_time)
                     continue
-
-                # Non-retryable or exhausted retries
-                logger.info(f"API {method.upper()} request failed: {response.status}")
-                logger.info(data)
-                return data
+                logger.warning(
+                    f"Connection error after {self.__max_retries} retries: "
+                    f"{type(conn_err).__name__}: {conn_err}"
+                )
+                raise
 
         # Should not reach here, but just in case
         return data
@@ -471,6 +488,7 @@ class SharesightAPI:
         await aiofiles.os.remove(self.__token_file)
 
     async def close(self) -> None:
-        if self._created_session:
+        if not self._closed and self.session and not self.session.closed:
             logger.info("Connection to SharesightAPI being closed")
             await self.session.close()
+            self._closed = True
