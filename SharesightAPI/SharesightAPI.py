@@ -240,6 +240,7 @@ class SharesightAPI:
             try:
                 kwargs = {'headers': headers}
                 if method.upper() == 'GET':
+                    kwargs['params'] = params
                 elif payload is not None:
                     kwargs['json'] = payload
 
