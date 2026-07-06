@@ -32,7 +32,8 @@ class SharesightAPI:
                  redirect_uri: str, token_url: str, api_url_base: str, use_token_file: bool = True,
                  debugging: bool = False, token_file_name: Optional[str] = None,
                  session: aiohttp.ClientSession | None = None,
-                 max_retries: int = 3, retry_backoff: float = 1.0) -> None:
+                 max_retries: int = 3, retry_backoff: float = 1.0,
+                 raise_for_status: bool = False, token_expiry_margin: float = 60.0) -> None:
         """
         Initializes the API client with the necessary credentials and settings.
 
@@ -49,6 +50,10 @@ class SharesightAPI:
         - session: Optional; an existing aiohttp.ClientSession to reuse.
         - max_retries: Maximum number of retries for transient errors (429, 500, 502, 503). Defaults to 3.
         - retry_backoff: Base backoff time in seconds for retries (exponential). Defaults to 1.0.
+        - raise_for_status: When True, non-success responses raise the Sharesight* exceptions
+          instead of returning the raw error dict. Defaults to False (backward compatible).
+        - token_expiry_margin: Refresh the access token this many seconds before it actually
+          expires, to avoid a request starting with a token that dies mid-flight. Defaults to 60.
         """
         self.__client_id = client_id
         self.__client_secret = client_secret
@@ -66,9 +71,22 @@ class SharesightAPI:
         self.__max_retries = max_retries
         self.__retry_backoff = retry_backoff
         self.__tokens_loaded = False
+        self.__raise_for_status = raise_for_status
+        self.__token_expiry_margin = token_expiry_margin
+        # Serialise token refreshes so concurrent callers don't all hit the
+        # OAuth endpoint simultaneously (which can trip Sharesight's lockout).
+        self.__token_lock = asyncio.Lock()
 
-        self.session = session or aiohttp.ClientSession()
-        self._created_session = not session
+        # A library must not reconfigure the host application's root logging;
+        # only adjust our own logger's level.
+        if debugging:
+            logger.setLevel(logging.DEBUG)
+
+        # Defer creating our own ClientSession until first use so it is created
+        # inside the running event loop — creating one in __init__ (outside a
+        # coroutine) is deprecated in modern aiohttp.
+        self.session = session
+        self._created_session = session is None
         self._closed = False
 
     async def __aenter__(self):
@@ -77,13 +95,18 @@ class SharesightAPI:
     async def __aexit__(self, *exc):
         await self.close()
 
+    def _get_session(self) -> aiohttp.ClientSession:
+        """Return the aiohttp session, creating one lazily inside the loop."""
+        if self.session is None or self.session.closed:
+            self.session = aiohttp.ClientSession()
+            self._created_session = True
+        return self.session
+
     async def get_token_data(self) -> None:
         """
         Loads token data (access token, refresh token, token expiry, and authorization code)
         from the token file if it exists.
         """
-        if self.__debugging:
-            logging.basicConfig(level=logging.DEBUG)
         self.__access_token, self.__refresh_token, self.__token_expiry, self.__load_auth_code = await self.load_tokens()
         self.__tokens_loaded = True
 
@@ -101,24 +124,26 @@ class SharesightAPI:
         if self.__authorization_code is None or self.__authorization_code == "":
             self.__authorization_code = self.__load_auth_code
 
-        current_time = time.time()
+        # Serialise the check-and-refresh so that if several coroutines call
+        # validate_token() concurrently only one refresh actually happens.
+        async with self.__token_lock:
+            current_time = time.time()
+            logger.debug("Current time: %s, token expiry: %s", current_time, self.__token_expiry)
 
-        if self.__debugging:
-            logger.info(f"CURRENT TIME: {current_time}")
-            logger.info(f"TOKEN REFRESH TIME: {self.__token_expiry}\n")
-
-        if self.__access_token is None:
-            logger.info("NO TOKEN FILE/CONFIG  FOUND - GENERATING NEW")
-            return await self.get_access_token()
-        elif not self.__access_token:
-            logger.info("TOKEN TOKEN FILE/CONFIG INVALID - GENERATING NEW")
-            return await self.refresh_access_token()
-        elif current_time >= self.__token_expiry:
-            logger.info("ACCESS TOKEN EXPIRED - GENERATING NEW")
-            return await self.refresh_access_token()
-        else:
-            logger.info("ACCESS TOKEN VALID - PASSING")
-            return self.__access_token
+            if self.__access_token is None:
+                logger.debug("No access token found - generating new")
+                return await self.get_access_token()
+            elif not self.__access_token:
+                logger.debug("Access token invalid - refreshing")
+                return await self.refresh_access_token()
+            elif self.__token_expiry is None or current_time >= (
+                self.__token_expiry - self.__token_expiry_margin
+            ):
+                logger.debug("Access token expired/expiring - refreshing")
+                return await self.refresh_access_token()
+            else:
+                logger.debug("Access token valid - passing")
+                return self.__access_token
 
     async def refresh_access_token(self) -> Union[str, int]:
         """
@@ -140,11 +165,10 @@ class SharesightAPI:
             'Content-Type': 'application/json'
         }
 
-        async with self.session.post(self.__token_url, data=json.dumps(payload), headers=headers) as response:
+        async with self._get_session().post(self.__token_url, data=json.dumps(payload), headers=headers) as response:
             if response.status == 200:
                 token_data = await response.json()
-                if self.__debugging:
-                    logger.info(f"Refresh_access_token response: {_redact_token_data(token_data)}")
+                logger.debug("refresh_access_token response: %s", _redact_token_data(token_data))
                 self.__access_token = token_data['access_token']
                 self.__refresh_token = token_data['refresh_token']
                 self.__token_expiry = time.time() + token_data.get('expires_in', 1800)
@@ -152,11 +176,16 @@ class SharesightAPI:
                     await self.save_tokens()
                 return self.__access_token
             else:
-                logger.info(f"Failed to refresh access token: {response.status}")
+                logger.warning("Failed to refresh access token: %s", response.status)
                 try:
-                    logger.info(await response.json())
+                    error_data = await response.json()
                 except Exception:
-                    logger.info(await response.text())
+                    error_data = {'error': await response.text(), 'status_code': response.status}
+                logger.debug("Token refresh error body: %s", error_data)
+                if self.__raise_for_status:
+                    raise SharesightAuthError(
+                        f"Token refresh failed (HTTP {response.status}): {error_data}"
+                    )
                 return response.status
 
     async def get_access_token(self) -> Union[str, int]:
@@ -178,11 +207,10 @@ class SharesightAPI:
             'Content-Type': 'application/json'
         }
 
-        async with self.session.post(self.__token_url, data=json.dumps(payload), headers=headers) as response:
+        async with self._get_session().post(self.__token_url, data=json.dumps(payload), headers=headers) as response:
             if response.status == 200:
                 token_data = await response.json()
-                if self.__debugging:
-                    logger.info(f"get_access_token response: {_redact_token_data(token_data)}")
+                logger.debug("get_access_token response: %s", _redact_token_data(token_data))
                 self.__access_token = token_data['access_token']
                 self.__refresh_token = token_data['refresh_token']
                 self.__token_expiry = current_time + token_data.get('expires_in', 1800)
@@ -190,21 +218,52 @@ class SharesightAPI:
                 if self.__use_token_file:
                     await self.save_tokens()
                 return self.__access_token
-            elif response.status == 400:
-                logger.info(f"Failed to obtain access token: {response.status}")
-                logger.info(f"Did you fill out the correct information?")
-                try:
-                    logger.info(await response.json())
-                except Exception:
-                    logger.info(await response.text())
-                return response.status
             else:
-                logger.info(f"Failed to obtain access token: {response.status}")
+                logger.warning("Failed to obtain access token: %s", response.status)
+                if response.status == 400:
+                    logger.warning("Did you fill out the correct information (client id/secret/auth code)?")
                 try:
-                    logger.info(await response.json())
+                    error_data = await response.json()
                 except Exception:
-                    logger.info(await response.text())
+                    error_data = {'error': await response.text(), 'status_code': response.status}
+                logger.debug("Access token error body: %s", error_data)
+                if self.__raise_for_status:
+                    raise SharesightAuthError(
+                        f"Failed to obtain access token (HTTP {response.status}): {error_data}"
+                    )
                 return response.status
+
+    def _retry_after_seconds(self, retry_after: Optional[str], attempt: int) -> float:
+        """Seconds to wait for a 429, honouring Retry-After but tolerating a
+        non-numeric (HTTP-date) value and capping the wait."""
+        wait_time = self.__retry_backoff * (2 ** attempt)
+        if retry_after:
+            try:
+                wait_time = float(retry_after)
+            except (TypeError, ValueError):
+                # Retry-After can be an HTTP-date rather than a number; fall
+                # back to exponential backoff instead of crashing.
+                logger.debug("Non-numeric Retry-After header: %r", retry_after)
+        return min(wait_time, 300.0)
+
+    def _raise_for_response(self, status: int, data: Any, headers: Any = None) -> None:
+        """Raise the appropriate Sharesight* exception for an error response."""
+        message = ""
+        if isinstance(data, dict):
+            message = str(data.get('error') or data.get('message') or data)
+        if status == 401:
+            raise SharesightAuthError(message or "Authentication failed")
+        if status == 429:
+            retry_after = None
+            if headers is not None:
+                raw = headers.get('Retry-After')
+                if raw:
+                    try:
+                        retry_after = float(raw)
+                    except (TypeError, ValueError):
+                        retry_after = None
+            raise SharesightRateLimitError(response_data=data, retry_after=retry_after)
+        raise SharesightAPIError(status, message or "Request failed", response_data=data)
 
     async def _request(self, method: str, endpoint: list, payload: Optional[Dict[str, Any]] = None,
                        access_token: Optional[str] = None) -> Dict[str, Any]:
@@ -244,7 +303,7 @@ class SharesightAPI:
                 elif payload is not None:
                     kwargs['json'] = payload
 
-                async with self.session.request(method, url, **kwargs) as response:
+                async with self._get_session().request(method, url, **kwargs) as response:
                     # Try to parse JSON response
                     try:
                         data = await response.json()
@@ -257,11 +316,9 @@ class SharesightAPI:
                     # Handle retryable errors
                     if response.status in retryable_statuses and attempt < self.__max_retries:
                         if response.status == 429:
-                            retry_after = response.headers.get('Retry-After')
-                            if retry_after:
-                                wait_time = float(retry_after)
-                            else:
-                                wait_time = self.__retry_backoff * (2 ** attempt)
+                            wait_time = self._retry_after_seconds(
+                                response.headers.get('Retry-After'), attempt
+                            )
                             logger.info(f"Rate limited (429). Retrying in {wait_time}s (attempt {attempt + 1}/{self.__max_retries})")
                         else:
                             wait_time = self.__retry_backoff * (2 ** attempt)
@@ -271,7 +328,9 @@ class SharesightAPI:
 
                     # Non-retryable or exhausted retries
                     logger.info(f"API {method.upper()} request failed: {response.status}")
-                    logger.info(data)
+                    logger.debug(data)
+                    if self.__raise_for_status:
+                        self._raise_for_response(response.status, data, response.headers)
                     return data
 
             except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as conn_err:
@@ -468,8 +527,12 @@ class SharesightAPI:
             'auth_code': self.__authorization_code
         }
 
-        async with aiofiles.open(self.__token_file, mode='w') as file:
+        # Write to a temp file then atomically replace, so a crash mid-write
+        # can't leave a truncated/corrupt token file behind.
+        tmp_file = f"{self.__token_file}.tmp"
+        async with aiofiles.open(tmp_file, mode='w') as file:
             await file.write(json.dumps(token_data))
+        os.replace(tmp_file, self.__token_file)
 
     async def return_token(self) -> Dict[str, Union[str, float]]:
         """
@@ -489,7 +552,14 @@ class SharesightAPI:
         await aiofiles.os.remove(self.__token_file)
 
     async def close(self) -> None:
-        if not self._closed and self.session and not self.session.closed:
-            logger.info("Connection to SharesightAPI being closed")
+        # Only close a session we created ourselves — never close a session
+        # that was passed in (e.g. Home Assistant's shared client session).
+        if (
+            not self._closed
+            and self._created_session
+            and self.session is not None
+            and not self.session.closed
+        ):
+            logger.debug("Closing SharesightAPI-owned aiohttp session")
             await self.session.close()
-            self._closed = True
+        self._closed = True

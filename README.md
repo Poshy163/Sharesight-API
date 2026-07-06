@@ -136,6 +136,18 @@ from SharesightAPI import SharesightError, SharesightAuthError, SharesightAPIErr
 - `SharesightAPIError` - API request failures (has `status_code`, `message`, `response_data` attributes)
 - `SharesightRateLimitError` - Rate limiting (429) with optional `retry_after` attribute
 
+By default (`raise_for_status=False`) requests return the raw error dict for
+backward compatibility. Opt in to exception-based error handling by passing
+`raise_for_status=True`:
+
+```python
+sharesight = SharesightAPI.SharesightAPI(
+    client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
+    raise_for_status=True,      # non-success responses raise Sharesight* exceptions
+    token_expiry_margin=60.0,   # refresh the token this many seconds before it expires
+)
+```
+
 # **Retry Configuration** #
 
 The client automatically retries on transient errors (429, 500, 502, 503) with exponential backoff:

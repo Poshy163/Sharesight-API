@@ -1,6 +1,7 @@
 .idea
 sharesight_token.txt
-/SharesightAPI/__pycache__
+__pycache__/
+*.pyc
 output.json
 
 /build
