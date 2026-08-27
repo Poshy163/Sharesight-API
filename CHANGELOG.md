@@ -25,8 +25,13 @@ All notable changes to this project are documented here. Versions follow
 - Accept both canonical `/api/` and matching versioned API base URLs.
 - Add the HTTP status to JSON error bodies returned through legacy
   non-raising calls.
-- Raise the minimum runtime dependencies to `aiofiles` 25.1.0 for current
-  Python support and `aiohttp` 3.14.3 for its security fixes.
+- Allow `aiofiles` 24.1.0 through 25.x so Home Assistant environments with an
+  existing 24.1 constraint remain resolvable; unconstrained installs select
+  the current 25.1.0 release.
+- Raise the minimum `aiohttp` version to 3.14.3 for its security fixes and
+  current Home Assistant compatibility.
+- Raise the isolated-build requirements to `setuptools` 84.0.0 and `wheel`
+  0.48.0.
 - Update the SHA-pinned GitHub Actions used for testing and trusted publishing.
 - Require Python 3.10 or newer.
 
