@@ -1,177 +1,235 @@
-# **Sharesight API** #
+# Sharesight API
 
-API to interface with Sharesight's v2 API
+[![Tests](https://github.com/Poshy163/Sharesight-API/actions/workflows/test.yml/badge.svg)](https://github.com/Poshy163/Sharesight-API/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/SharesightAPI.svg)](https://pypi.org/project/SharesightAPI/)
+[![Python](https://img.shields.io/pypi/pyversions/SharesightAPI.svg)](https://pypi.org/project/SharesightAPI/)
 
-- Supports POST, PUT, PATCH, DELETE and GET requests
-- Automatic retry with exponential backoff for transient errors (429, 500, 502, 503)
-- Custom exception classes for structured error handling
-- Async context manager support (`async with`)
-- Convenience methods for common API operations
+An asynchronous Python client for Sharesight's v2 and v3 APIs.
 
-# **How to use** #
-See the example.py file for an example
+- Supports GET, POST, PUT, PATCH, and DELETE requests.
+- Retries transient HTTP and connection failures with bounded exponential backoff.
+- Preserves HTTP status, structured error bodies, and response headers.
+- Provides custom exceptions, an async context manager, and common convenience methods.
+- Supports either built-in token-file handling or caller-managed OAuth tokens.
 
-This whole thing is designed to be asynchronous
+See [CHANGELOG.md](CHANGELOG.md) for release details and [example.py](example.py)
+for a complete example.
 
-Added support for refresh token, no need to feed in clientID, clientSecret or authCode if token file exists
+## Installation
 
-This API was designed to handle all the tokens requirements, but you are able to manage it yourself, removing the need to use get_token_data()
-and validate_token(), by passing the access token into get_api_request().
-
-# **How to install** #
-Do ```pip install SharesightAPI```
-
-# **How to test using example.py** #
-
-To test the API, run the example.py file, with the variables in blank filled in, it will update specific post specific
-data points to the console, and a json file with the output will be made
-
-# **How to get API token** #
-
-Read [here](https://portfolio.sharesight.com/api/) (you may need to get in contact with them over live chat)
-
-# **Input/Output** #
-
-To start, call and assign (like this)
-
-```python
-sharesight = SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base)
+```bash
+python -m pip install SharesightAPI
 ```
 
-Or use the async context manager:
+Python 3.10 or newer is required. Runtime dependencies (`aiohttp` and
+`aiofiles`) are installed automatically.
+
+## Getting API access
+
+Sharesight describes API availability and OAuth setup on its
+[official API page](https://portfolio.sharesight.com/api/). You may need to
+contact Sharesight to have API access enabled for your account.
+
+The canonical production endpoints are:
 
 ```python
-async with SharesightAPI.SharesightAPI(client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base) as sharesight:
+redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
+token_url = "https://api.sharesight.com/oauth2/token"
+api_url_base = "https://api.sharesight.com/api/"
+```
+
+Endpoint lists carry their own version (`v2` or `v3`), so the canonical base
+ends at `/api/`. Versioned bases such as `/api/v2/` are also accepted for
+backward compatibility when the endpoint version matches.
+
+## Creating a client
+
+```python
+from SharesightAPI import SharesightAPI
+
+sharesight = SharesightAPI(
+    client_id,
+    client_secret,
+    authorization_code,
+    redirect_uri,
+    token_url,
+    api_url_base,
+)
+```
+
+Use the async context manager when the library owns its HTTP session:
+
+```python
+async with SharesightAPI(
+    client_id,
+    client_secret,
+    authorization_code,
+    redirect_uri,
+    token_url,
+    api_url_base,
+) as sharesight:
     access_token = await sharesight.validate_token()
-    # ... use the API
+    portfolios = await sharesight.get_api_request(["v3", "portfolios", None], access_token)
 ```
 
-Sharesight has some recommendations for defaults as seen [here](https://portfolio.sharesight.com/api/2/authentication_flow):
+The client never closes a caller-supplied `aiohttp.ClientSession`. Call
+`close()` when not using the context manager and the client created its own
+session.
 
-+ redirect_uri = 'urn:ietf:wg:oauth:2.0:oob'
-+ token_url = 'https://api.sharesight.com/oauth2/token'
-+ api_url_base = 'https://api.sharesight.com/api/v2/'
+## Caller-managed tokens
 
-I have assumed some things (if left blank):
-
-+ token_file = 'sharesight_token_<client_id>.txt'
-+ debugging = False
-
-Then; to get the existing data contained within the token file (optional), run this to get the values and store it within the constructor:
-
-`await sharesight.get_token_data()`
-
-
-To check the currently loaded token, run the .validate_token() call, if it will return if the token has passed, failed and why. and will store the token in a .txt file
-
-This returns the current access_token, which can be passed in to use in API calls
-
-`access_token = await sharesight.validate_token()`
-
-# **Convenience Methods** #
-
-Instead of constructing endpoint lists manually, you can use built-in convenience methods:
+Applications that already manage OAuth can disable token files and pass an
+access token into each request:
 
 ```python
-# List all portfolios
+sharesight = SharesightAPI(
+    "",
+    "",
+    "",
+    "",
+    token_url,
+    api_url_base,
+    use_token_file=False,
+    session=shared_aiohttp_session,
+    raise_for_status=True,
+)
+
+result = await sharesight.get_api_request(["v3", "portfolios", None], access_token)
+```
+
+`inject_token()` and `return_token()` are available when the application wants
+the client to refresh a caller-stored token. A refresh response that omits a
+replacement refresh token retains the token that just succeeded.
+
+## Convenience methods
+
+```python
 portfolios = await sharesight.list_portfolios()
-
-# Get a specific portfolio
 portfolio = await sharesight.get_portfolio(portfolio_id)
-
-# Get portfolio performance (with optional date range)
-performance = await sharesight.get_portfolio_performance(portfolio_id, start_date="2024-01-01", end_date="2024-12-31")
-
-# List holdings in a portfolio
+performance = await sharesight.get_portfolio_performance(
+    portfolio_id,
+    start_date="2026-01-01",
+    end_date="2026-08-27",
+)
 holdings = await sharesight.list_holdings(portfolio_id)
-
-# Get a specific holding
 holding = await sharesight.get_holding(holding_id)
-
-# List trades
 trades = await sharesight.list_trades(portfolio_id)
-
-# Create a trade
 trade = await sharesight.create_trade(portfolio_id, trade_data)
-
-# Cash accounts
 cash_accounts = await sharesight.list_cash_accounts()
 cash_account = await sharesight.get_cash_account(cash_account_id)
-
-# Groups
 groups = await sharesight.list_groups()
 ```
 
-# **Raw API Requests** #
+## Raw requests
 
-To make an API call (get): call .get_api_request(endpoint), making the endpoint being a list of the API version, the call URL, and the params if applicable. It will return a dictionary with the response.
-You are able to parse through the access_token, otherwise it will default to the current access token in the constructor.
-
-example: `await sharesight.get_api_request(["v2","portfolios", None])`
-
-or
-
-example: `await sharesight.get_api_request(["v2","portfolios", None], access_token)`
-
-To make an API call (post): call .post_api_request, with the addition of parsing in a payload JSON to post
-
-example: `await sharesight.post_api_request(["v2","portfolios"], "{ "portfolio": { "name": "My new Portfolio"}})`
-
-you can see a full list of v2 endpoints [here](https://portfolio.sharesight.com/api/2/doc/index.html), and v3 endpoints [here](https://portfolio.sharesight.com/api/3/doc/index.html) (including examples)
-
-Call `delete_token()` to remove the Token file from the instance (will cause a new auth_code to be needed)
-
-To close the connection, call `close()` (or use the `async with` context manager for automatic cleanup)
-
-# **Custom Exceptions** #
-
-The library provides custom exception classes for structured error handling:
+An endpoint is `[version, path, query_parameters]`:
 
 ```python
-from SharesightAPI import SharesightError, SharesightAuthError, SharesightAPIError, SharesightRateLimitError
+portfolios = await sharesight.get_api_request(["v3", "portfolios", None], access_token)
+
+trade = await sharesight.post_api_request(
+    ["v2", f"portfolios/{portfolio_id}/trades", {"dry_run": "true"}],
+    {"trade": trade_data},
+    access_token,
+)
 ```
 
-- `SharesightError` - Base exception for all Sharesight API errors
-- `SharesightAuthError` - Authentication failures
-- `SharesightAPIError` - API request failures (has `status_code`, `message`, `response_data` attributes)
-- `SharesightRateLimitError` - Rate limiting (429) with optional `retry_after` attribute
+The official endpoint references are available for
+[v2](https://portfolio.sharesight.com/api/2/doc/index.html) and
+[v3](https://portfolio.sharesight.com/api/3/doc/index.html).
 
-By default (`raise_for_status=False`) requests return the raw error dict for
-backward compatibility. Opt in to exception-based error handling by passing
+## Response metadata
+
+The original request helpers return only the parsed body for backward
+compatibility. Use `get_api_response()` when status and headers are also
+needed:
+
+```python
+response = await sharesight.get_api_response(["v3", "portfolios", None], access_token)
+print(response.status)
+print(response.headers.get("X-MinuteRate-Remaining"))
+print(response.data)
+```
+
+`request_api_response()` provides the same metadata-preserving interface for
+other HTTP methods. Metadata belongs to the returned `SharesightResponse`
+rather than mutable client-wide state, so concurrent requests cannot overwrite
+one another.
+
+## Exceptions
+
+```python
+from SharesightAPI import (
+    SharesightAPIError,
+    SharesightAuthError,
+    SharesightError,
+    SharesightRateLimitError,
+)
+```
+
+- `SharesightError` is the base exception.
+- `SharesightAuthError` retains authentication status, body, and headers.
+- `SharesightAPIError` exposes `status_code`, `message`, `response_data`, and
+  `response_headers`.
+- `SharesightRateLimitError` represents HTTP 429 and Sharesight's rate-limit
+  HTTP 403, and may expose `retry_after`.
+
+By default, failures return a body for backward compatibility. JSON error
+bodies gain `status_code` when the server omitted it. Opt into exceptions with
 `raise_for_status=True`:
 
 ```python
-sharesight = SharesightAPI.SharesightAPI(
-    client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
-    raise_for_status=True,      # non-success responses raise Sharesight* exceptions
-    token_expiry_margin=60.0,   # refresh the token this many seconds before it expires
+sharesight = SharesightAPI(
+    client_id,
+    client_secret,
+    authorization_code,
+    redirect_uri,
+    token_url,
+    api_url_base,
+    raise_for_status=True,
 )
 ```
 
-# **Retry Configuration** #
+## Retries
 
-The client automatically retries on transient errors (429, 500, 502, 503) with exponential backoff:
+The client retries HTTP 408, 425, 429, 500, 502, 503, and 504 responses,
+Sharesight's rate-limit HTTP 403, and transport failures:
 
 ```python
-sharesight = SharesightAPI.SharesightAPI(
-    client_id, client_secret, authorization_code, redirect_uri, token_url, api_url_base,
-    max_retries=3,       # Maximum retry attempts (default: 3)
-    retry_backoff=1.0    # Base backoff time in seconds (default: 1.0)
+sharesight = SharesightAPI(
+    client_id,
+    client_secret,
+    authorization_code,
+    redirect_uri,
+    token_url,
+    api_url_base,
+    max_retries=3,
+    retry_backoff=1.0,
 )
 ```
 
-For 429 responses, the `Retry-After` header is respected when present.
+Backoff doubles after each failure. Numeric `Retry-After` values are respected
+and capped at five minutes. Set `max_retries=0` when a host application owns
+scheduling and rate-limit backoff; this surfaces the rejection immediately
+instead of sleeping inside the request.
 
-# **Manual Token Handling** #
+## Token safety
 
-This is an alternative to saving the token in the current directory, this allows you to handle all the token functions.
+The default token file is `sharesight_token_<client_id>.txt`. Token files and
+dictionaries returned by `return_token()` contain credentials. Do not log,
+commit, or attach them to bug reports. Call `delete_token()` when the stored
+grant should be removed.
 
-To store your own token data elsewhere, call `return_token()` to gets the currently saved token information, which can be called after the token is validated (see example.py for more details)
+## Development
 
-(This removes the need for save_token and load_token methods, as you'll be handling it, but the token will still be refreshed)
+```bash
+python -m pip install -r requirements_test.txt
+python -m pip install -e .
+python -m pytest
+python -m ruff check .
+python -m build
+python -m twine check dist/*
+python scripts/check_dist.py dist
+```
 
-Token data is returned like this:
-
-`{ 'auth_code': 12345, 'access_token': 12345, 'token_expiry': 12345, 'refresh_token': 12345 }`
-
-To then inject your token into the API, you need to call `inject_token(token_data)` where token_data is the token, in the same format as above
+See [RELEASING.md](RELEASING.md) for the release and trusted-publishing flow.

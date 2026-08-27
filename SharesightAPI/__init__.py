@@ -1,18 +1,19 @@
-from .SharesightAPI import SharesightAPI
 from .exceptions import (
-    SharesightError,
-    SharesightAuthError,
     SharesightAPIError,
+    SharesightAuthError,
+    SharesightError,
     SharesightRateLimitError,
 )
+from .SharesightAPI import SharesightAPI, SharesightResponse
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 __all__ = [
     "SharesightAPI",
-    "SharesightError",
-    "SharesightAuthError",
     "SharesightAPIError",
+    "SharesightAuthError",
+    "SharesightError",
     "SharesightRateLimitError",
+    "SharesightResponse",
     "__version__",
 ]

@@ -1,8 +1,13 @@
 .idea
-sharesight_token.txt
+# Default and user-selected OAuth token files. These contain live credentials.
+sharesight_token*.txt
 __pycache__/
 *.pyc
 output.json
+
+/.pytest_cache/
+/.ruff_cache/
+/.venv/
 
 /build
 /dist
