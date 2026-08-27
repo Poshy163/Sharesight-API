@@ -3,6 +3,11 @@ from setuptools import find_packages, setup
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
 
+with open("requirements.txt", encoding="utf-8") as f:
+    runtime_requirements = [
+        line.strip() for line in f if line.strip() and not line.lstrip().startswith("#")
+    ]
+
 setup(
     name="SharesightAPI",
     version="1.4.0",
@@ -24,10 +29,7 @@ setup(
     packages=find_packages(),
     # Ship the inline type hints (PEP 561).
     package_data={"SharesightAPI": ["py.typed"]},
-    install_requires=[
-        "aiofiles>=24.1.0,<26.0.0",
-        "aiohttp>=3.10.0,<4.0.0",
-    ],
+    install_requires=runtime_requirements,
     python_requires=">=3.10",
     classifiers=[
         "Programming Language :: Python :: 3",

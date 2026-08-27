@@ -12,7 +12,7 @@ All notable changes to this project are documented here. Versions follow
   headers without shared mutable state.
 - Added typed coverage for Sharesight's non-standard HTTP 403 rate-limit
   responses and retained response headers on all API exceptions.
-- Added Python 3.10, 3.12, and 3.14 CI coverage, distribution validation, and
+- Added Python 3.10 through 3.14 CI coverage, distribution validation, and
   a trusted-publishing release workflow.
 
 ### Changed
@@ -25,6 +25,9 @@ All notable changes to this project are documented here. Versions follow
 - Accept both canonical `/api/` and matching versioned API base URLs.
 - Add the HTTP status to JSON error bodies returned through legacy
   non-raising calls.
+- Raise the minimum runtime dependencies to `aiofiles` 25.1.0 for current
+  Python support and `aiohttp` 3.14.3 for its security fixes.
+- Update the SHA-pinned GitHub Actions used for testing and trusted publishing.
 - Require Python 3.10 or newer.
 
 ### Fixed

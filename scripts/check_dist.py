@@ -24,12 +24,28 @@ def source_version() -> str:
     return match.group(1)
 
 
-def requirement_name(requirement: str) -> str:
-    """Return a normalised distribution name from a Requires-Dist value."""
+def requirement_signature(requirement: str) -> tuple[str, frozenset[str]]:
+    """Return a normalised name and specifier set for a requirement."""
     match = REQUIREMENT_NAME.match(requirement)
     if match is None:
         raise RuntimeError(f"Could not parse Requires-Dist value: {requirement!r}")
-    return match.group(0).lower().replace("_", "-")
+    name = match.group(0).lower().replace("_", "-")
+    specifiers = frozenset(
+        specifier.strip()
+        for specifier in requirement[match.end() :].split(",")
+        if specifier.strip()
+    )
+    return name, specifiers
+
+
+def source_requirements() -> set[tuple[str, frozenset[str]]]:
+    """Read the runtime requirements that the package metadata must mirror."""
+    lines = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    return {
+        requirement_signature(line)
+        for line in lines
+        if line.strip() and not line.lstrip().startswith("#")
+    }
 
 
 def check_wheel(wheel: Path, expected_version: str) -> None:
@@ -65,9 +81,13 @@ def check_wheel(wheel: Path, expected_version: str) -> None:
     if metadata["Requires-Python"] != ">=3.10":
         raise RuntimeError(f"Unexpected Requires-Python: {metadata['Requires-Python']!r}")
 
-    requirements = {requirement_name(value) for value in metadata.get_all("Requires-Dist", [])}
-    if requirements != {"aiofiles", "aiohttp"}:
-        raise RuntimeError(f"Unexpected runtime dependencies: {sorted(requirements)}")
+    requirements = {requirement_signature(value) for value in metadata.get_all("Requires-Dist", [])}
+    expected_requirements = source_requirements()
+    if requirements != expected_requirements:
+        raise RuntimeError(
+            "Wheel runtime dependencies do not match requirements.txt: "
+            f"{sorted(requirements)} != {sorted(expected_requirements)}"
+        )
     if not metadata.get("License-File"):
         raise RuntimeError("Wheel metadata does not reference the bundled license")
 
