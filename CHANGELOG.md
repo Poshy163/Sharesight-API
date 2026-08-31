@@ -3,6 +3,50 @@
 All notable changes to this project are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-08-31
+
+### Added
+
+- Added partial `TypedDict` response models for portfolios, holdings,
+  performance, trades, payouts, cash accounts, groups, currencies, countries,
+  custom investments, prices, adjustments, coupon rates and value series.
+  Missing and nullable API fields remain valid.
+- Added typed read-only helpers for the public v2/v3 portfolio, performance,
+  valuation, diversity, tax, holding, trade, payout, cash, instrument, user,
+  group, currency, country and custom-investment endpoints, plus clearly
+  labelled entitlement-dependent benchmark and value-series reads.
+- Added bounded opaque-cursor pagination for Sharesight's documented paginated
+  routes, with repeated-cursor protection and no unsafe page-count guessing.
+- Added opt-in `Decimal` JSON decoding, per-request timeouts, bounded retry
+  jitter and a typed malformed-response exception.
+
+### Changed
+
+- Added explicit preferred-V3 helpers while preserving the legacy V2 response
+  contracts of `list_portfolios()`, `get_portfolio()` and
+  `get_portfolio_performance()`; corrected official `.json` route spellings
+  where required.
+- Portfolio/holding trade lists and holding payouts now deliberately use the
+  public V2 routes; Sharesight marks their V3 counterparts as internal-only.
+- Added explicit public V2 portfolio list, detail and performance fallbacks;
+  modelled the V2 portfolio/cash-account and V3 custom-investment detail routes
+  as the bare objects they actually return.
+- Custom-investment child reads accept and preserve Sharesight's opaque page
+  cursors rather than assuming numeric pages.
+- Corrected the bundled example's client construction and V2 route spelling;
+  it no longer prints OAuth token data or writes portfolio payloads unless the
+  user explicitly opts in.
+- Corrected `create_trade()` to post to `v2/trades.json`, wrap the trade body,
+  and inject the portfolio id. It remains explicitly isolated as a
+  write-capable method and is covered only with mocks.
+- Token-file existence, replacement, permissions and deletion are now
+  asynchronous; unique atomic temporary files and legacy/new owner-only
+  permissions prevent predictable-symlink and brief-readable-file windows.
+- OAuth log redaction now recursively removes nested credentials and writes
+  only allowlisted metadata; token exceptions never retain raw error bodies.
+
+[1.5.0]: https://github.com/Poshy163/Sharesight-API/compare/v1.4.0...v1.5.0
+
 ## [1.4.0] - 2026-08-27
 
 ### Added

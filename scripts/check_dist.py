@@ -66,6 +66,7 @@ def check_wheel(wheel: Path, expected_version: str) -> None:
         "SharesightAPI/SharesightAPI.py",
         "SharesightAPI/__init__.py",
         "SharesightAPI/exceptions.py",
+        "SharesightAPI/models.py",
         "SharesightAPI/py.typed",
     }
     missing = expected_files - names
@@ -99,12 +100,14 @@ def check_sdist(sdist: Path, expected_version: str) -> None:
 
     suffixes = {
         "CHANGELOG.md",
+        "example.py",
         "LICENSE",
         "README.md",
         "RELEASING.md",
         "pyproject.toml",
         "setup.py",
         "SharesightAPI/SharesightAPI.py",
+        "SharesightAPI/models.py",
         "SharesightAPI/py.typed",
         "tests/test_client.py",
     }

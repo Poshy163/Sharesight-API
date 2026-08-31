@@ -39,7 +39,8 @@ class SharesightAuthError(SharesightAPIError):
 
     The default keeps direct construction backward compatible while allowing
     token-endpoint failures such as HTTP 400 ``invalid_grant`` to retain their
-    real status and response body.
+    real status and safe OAuth error code. Raw token-endpoint bodies are not
+    retained because a provider may echo submitted credentials in free text.
     """
 
     def __init__(
@@ -76,3 +77,11 @@ class SharesightRateLimitError(SharesightAPIError):
             response_data=response_data,
             response_headers=response_headers,
         )
+
+
+class SharesightResponseError(SharesightError):
+    """Sharesight returned a successful HTTP response with an invalid shape."""
+
+    def __init__(self, message: str, *, response_data: object = None) -> None:
+        super().__init__(message)
+        self.response_data = response_data

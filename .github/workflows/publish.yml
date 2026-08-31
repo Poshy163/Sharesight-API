@@ -37,6 +37,7 @@ jobs:
         run: |
           python -m ruff check .
           python -m ruff format --check .
+          python -m mypy SharesightAPI tests/typecheck_models.py
       - name: Build distributions
         run: python -m build
       - name: Check distribution metadata and contents

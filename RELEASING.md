@@ -33,6 +33,7 @@ for the project-side setup.
    python -m pip install -e .
    python -m pytest
    python -m ruff check .
+   python -m mypy SharesightAPI tests/typecheck_models.py
    python -m build
    python -m twine check dist/*
    python scripts/check_dist.py dist
@@ -41,16 +42,17 @@ for the project-side setup.
 4. Commit and push the reviewed release changes. Confirm the `Test` workflow
    succeeds on that exact commit.
 5. Create a GitHub release whose tag is exactly `v<package version>`, for
-   example `v1.4.0`, targeting the validated commit.
+   example `v1.5.0`, targeting the validated commit.
 6. Publish the GitHub release. The `Publish Python package` workflow checks
    that the tag and package versions match, rebuilds the distributions, and
    publishes them through the `pypi` environment.
 7. Verify the files and metadata on PyPI, then install into a clean environment:
 
    ```bash
+   RELEASE_VERSION="$(python -c 'from SharesightAPI import __version__; print(__version__)')"
    python -m venv release-smoke
-   release-smoke/bin/python -m pip install SharesightAPI==1.4.0
-   release-smoke/bin/python -c "import SharesightAPI; print(SharesightAPI.__version__)"
+   release-smoke/bin/python -m pip install "SharesightAPI==$RELEASE_VERSION"
+   release-smoke/bin/python -I -c "import SharesightAPI; print(SharesightAPI.__version__)"
    ```
 
    On Windows, use `release-smoke\Scripts\python.exe`.

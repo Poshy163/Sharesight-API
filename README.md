@@ -101,24 +101,97 @@ result = await sharesight.get_api_request(["v3", "portfolios", None], access_tok
 the client to refresh a caller-stored token. A refresh response that omits a
 replacement refresh token retains the token that just succeeded.
 
-## Convenience methods
+## Typed convenience methods
+
+The client prefers public v3 endpoints, as Sharesight recommends, and uses v2
+where v3 has no equivalent public aggregate. Response annotations come from
+the partial `TypedDict` models exported by `SharesightAPI`; fields remain
+optional because Sharesight omits data for empty, sold, delisted and
+plan-limited positions.
 
 ```python
-portfolios = await sharesight.list_portfolios()
-portfolio = await sharesight.get_portfolio(portfolio_id)
-performance = await sharesight.get_portfolio_performance(
+portfolios = await sharesight.list_portfolios_v3()
+portfolio = await sharesight.get_portfolio_v3(portfolio_id)
+# Stable V2 helpers (the unsuffixed list/detail/performance methods preserve
+# their pre-1.5 routes and response shapes):
+portfolios_v2 = await sharesight.list_portfolios_v2()
+portfolio_v2 = await sharesight.get_portfolio_v2(portfolio_id)
+performance = await sharesight.get_portfolio_performance_v3(
     portfolio_id,
     start_date="2026-01-01",
     end_date="2026-08-27",
 )
+performance_v2 = await sharesight.get_portfolio_performance_v2(portfolio_id)
 holdings = await sharesight.list_holdings(portfolio_id)
+all_holdings = await sharesight.list_all_holdings()
 holding = await sharesight.get_holding(holding_id)
 trades = await sharesight.list_trades(portfolio_id)
-trade = await sharesight.create_trade(portfolio_id, trade_data)
+payouts = await sharesight.list_portfolio_payouts(portfolio_id)
 cash_accounts = await sharesight.list_cash_accounts()
 cash_account = await sharesight.get_cash_account(cash_account_id)
+cash_transactions = await sharesight.list_cash_account_transactions(cash_account_id)
+benchmark = await sharesight.get_portfolio_benchmark(portfolio_id)
+value_history = await sharesight.get_portfolio_value_data(portfolio_id)
+capital_gains = await sharesight.get_capital_gains(portfolio_id)
+unrealised_cgt = await sharesight.get_unrealised_cgt(portfolio_id)
 groups = await sharesight.list_groups()
+currencies = await sharesight.list_currencies()
+countries = await sharesight.list_countries(supported=True)
+custom_investments = await sharesight.list_custom_investments(portfolio_id=portfolio_id)
+custom_investment = await sharesight.get_custom_investment(custom_investment_id)
+custom_prices = await sharesight.list_custom_investment_prices(custom_investment_id)
+custom_adjustments = await sharesight.list_custom_investment_adjustments(custom_investment_id)
+coupon_rates = await sharesight.list_custom_investment_coupon_rates(custom_investment_id)
 ```
+
+| Data | Preferred endpoint |
+|---|---|
+| Portfolio list/detail | V3 `portfolios`, `portfolios/{id}` |
+| Performance/holdings | Public V3 portfolio routes |
+| Trades and holding payouts | Public V2 routes (the V3 equivalents are internal-scoped) |
+| Valuation/diversity/tax/payout aggregates | V2 portfolio routes |
+| Cash accounts/transactions | V2 cash-account routes |
+| Benchmark | V3 internal-tagged route; entitlement-dependent |
+| Value series | V3 mobile-tagged route; entitlement-dependent |
+| Performance index | Public V3 portfolio route |
+| User instruments/account/groups/currencies | Public V2 routes |
+| Countries/custom-investment reads | Public V3 routes |
+
+`create_trade()` is intentionally separated from the read-only group because
+it mutates financial records. Test it with mocks or a Sharesight developer
+sandbox before any authorised live use.
+
+## Pagination and monetary precision
+
+The aggregate endpoints above return complete arrays. For the documented V3
+custom-investment routes that paginate, the generic collector follows the
+opaque cursor returned in `pagination.page`:
+
+```python
+all_prices = await sharesight.get_all_pages(
+    ["v3", f"custom_investment/{custom_investment_id}/prices.json", None],
+    item_key="prices",
+    per_page=100,
+)
+```
+
+Pagination is bounded by `max_pages` and rejects malformed or repeated cursors
+with `SharesightResponseError`. You can also pass the returned
+`pagination.page` string through each dedicated helper's `page=` argument.
+The collector never guesses another page from array length, so using it with a
+non-paginated aggregate endpoint cannot duplicate a large response.
+
+To preserve fractional JSON numbers as decimal values rather than binary
+floats:
+
+```python
+sharesight = SharesightAPI(..., preserve_decimal=True)
+```
+
+Date-only and datetime values remain the exact strings supplied by Sharesight
+so applications can apply their own timezone policy without the client
+inventing one. Most are ISO-8601; a few legacy V2 portfolio fields use display
+formats such as `01 Jan 2009`.
 
 ## Raw requests
 
@@ -127,12 +200,15 @@ An endpoint is `[version, path, query_parameters]`:
 ```python
 portfolios = await sharesight.get_api_request(["v3", "portfolios", None], access_token)
 
-trade = await sharesight.post_api_request(
-    ["v2", f"portfolios/{portfolio_id}/trades", {"dry_run": "true"}],
-    {"trade": trade_data},
+value_history = await sharesight.get_api_request(
+    ["v3", f"portfolios/{portfolio_id}/portfolio_value_data.json", None],
     access_token,
 )
 ```
+
+The raw `POST`, `PUT`, `PATCH`, and `DELETE` helpers can mutate Sharesight
+records. Keep those calls outside polling code and validate them with mocks or
+an authorised developer sandbox.
 
 The official endpoint references are available for
 [v2](https://portfolio.sharesight.com/api/2/doc/index.html) and
@@ -164,15 +240,20 @@ from SharesightAPI import (
     SharesightAuthError,
     SharesightError,
     SharesightRateLimitError,
+    SharesightResponseError,
 )
 ```
 
 - `SharesightError` is the base exception.
-- `SharesightAuthError` retains authentication status, body, and headers.
+- `SharesightAuthError` retains authentication status and headers. Normal API
+  errors retain their structured body; token-endpoint bodies are reduced to a
+  safe OAuth error code because providers may echo credentials in free text.
 - `SharesightAPIError` exposes `status_code`, `message`, `response_data`, and
   `response_headers`.
 - `SharesightRateLimitError` represents HTTP 429 and Sharesight's rate-limit
   HTTP 403, and may expose `retry_after`.
+- `SharesightResponseError` represents a successful response with a malformed
+  or non-advancing shape.
 
 By default, failures return a body for backward compatibility. JSON error
 bodies gain `status_code` when the server omitted it. Opt into exceptions with
@@ -205,11 +286,15 @@ sharesight = SharesightAPI(
     api_url_base,
     max_retries=3,
     retry_backoff=1.0,
+    retry_jitter=0.25,
+    max_retry_delay=300,
+    request_timeout=30,
 )
 ```
 
-Backoff doubles after each failure. Numeric `Retry-After` values are respected
-and capped at five minutes. Set `max_retries=0` when a host application owns
+Backoff doubles after each failure, adds bounded positive jitter, and never
+exceeds `max_retry_delay`. Numeric `Retry-After` values are respected and
+capped by the same limit. Set `max_retries=0` when a host application owns
 scheduling and rate-limit backoff; this surfaces the rejection immediately
 instead of sleeping inside the request.
 
@@ -227,6 +312,8 @@ python -m pip install -r requirements_test.txt
 python -m pip install -e .
 python -m pytest
 python -m ruff check .
+python -m ruff format --check .
+python -m mypy SharesightAPI tests/typecheck_models.py
 python -m build
 python -m twine check dist/*
 python scripts/check_dist.py dist
