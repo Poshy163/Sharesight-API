@@ -3,6 +3,44 @@
 All notable changes to this project are documented here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-09-02
+
+### Added
+
+- Reconciled the response models against live production payloads: holdings
+  now model `instrument_currency`, `instrument_price`, `group_id`/`group_name`,
+  label objects and `number_of_unconfirmed_transactions`; performance reports
+  model `sub_totals`, embedded `cash_accounts`, the `currency` object,
+  `portfolio_tz_name` and `percentages_annualised`; payouts model the full
+  franking, withholding, capital-gain-distribution, AMIT and DRP fields;
+  trades model `market_price`, `capital_return_value` and attachment fields.
+- Added models for benchmarks (including the undocumented `maximum_drawdown`
+  and `return_over_drawdown`), portfolio user settings, user instruments,
+  account metadata, watchlists, realised and unrealised CGT reports,
+  sharechecker, official average purchase price and cost base, portfolio
+  value, instrument prices, the performance index chart and single sign-on.
+- Added typed helpers `get_watchlist()`, `get_sharechecker()`,
+  `get_holding_average_purchase_price()`, `get_holding_cost_base()`,
+  `get_holding_value_data()`, `get_portfolio_value()`,
+  `list_instrument_prices()` and `get_single_sign_on()`. All are read-only;
+  the mobile-tagged routes are labelled entitlement-dependent.
+- `get_capital_gains()`, `get_unrealised_cgt()`, `get_portfolio_user_setting()`,
+  `get_portfolio_benchmark()`, `get_portfolio_performance_index_chart()`,
+  `list_user_instruments()` and `get_my_user()` now return typed models.
+- Added `SharesightAPIError.is_version_unsupported`, `is_unauthorised`,
+  `is_forbidden`, `is_not_found` and `is_retryable`, plus the exported
+  `RETRYABLE_STATUS_CODES` set, so hosts can detect Sharesight's explicit
+  "version not supported" 406 for V3-to-V2 fallback without string matching.
+
+### Changed
+
+- The three POSIX token-file permission tests are skipped on Windows, where
+  `chmod` cannot express owner-only modes; they still run on Linux and macOS.
+- `ValueSeriesResponse` documents the live `chart.data[].timestamp` wrapper
+  alongside the apiDoc `values`/`portfolio_value_data` spellings.
+
+[1.6.0]: https://github.com/Poshy163/Sharesight-API/compare/v1.5.0...v1.6.0
+
 ## [1.5.0] - 2026-08-31
 
 ### Added

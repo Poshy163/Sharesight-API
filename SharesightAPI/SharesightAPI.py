@@ -24,9 +24,13 @@ from .exceptions import (
 from .models import (
     AdjustmentResponse,
     AdjustmentsResponse,
+    AveragePurchasePriceResponse,
+    BenchmarkResponse,
+    CapitalGainsReport,
     CashAccount,
     CashAccountsResponse,
     CashAccountTransactionsResponse,
+    CostBaseResponse,
     CountriesResponse,
     CouponRatesResponse,
     CurrenciesResponse,
@@ -36,14 +40,24 @@ from .models import (
     GroupsResponse,
     HoldingResponse,
     HoldingsResponse,
+    InstrumentPricesResponse,
+    MyUserResponse,
     PayoutsResponse,
+    PerformanceIndexChartResponse,
     PerformanceReport,
     PerformanceResponse,
     Portfolio,
     PortfolioResponse,
     PortfoliosResponse,
+    PortfolioValueResponse,
+    SharecheckerResponse,
+    SingleSignOnResponse,
     TradesResponse,
+    UnrealisedCgtReport,
+    UserInstrumentsResponse,
+    UserSettingResponse,
     ValueSeriesResponse,
+    WatchlistResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -1078,8 +1092,13 @@ class SharesightAPI:
         start_date: object = None,
         end_date: object = None,
         access_token: str | None = None,
-    ) -> dict[str, Any]:
-        """Get the v2 capital-gains report for a supported tax portfolio."""
+    ) -> CapitalGainsReport:
+        """Get the v2 capital-gains report for a supported tax portfolio.
+
+        Sharesight only serves this report for Australian tax portfolios; other
+        jurisdictions receive a 403/404 that hosts should treat as "not
+        applicable" rather than as an outage.
+        """
         params: dict[str, str] = {}
         if start_date is not None:
             params["start_date"] = str(start_date)
@@ -1090,7 +1109,7 @@ class SharesightAPI:
             ["v2", f"portfolios/{portfolio_id}/capital_gains.json", params or None],
             access_token=access_token,
         )
-        return self._mapping(data, "get_capital_gains")
+        return cast(CapitalGainsReport, self._mapping(data, "get_capital_gains"))
 
     async def get_unrealised_cgt(
         self,
@@ -1098,7 +1117,7 @@ class SharesightAPI:
         *,
         balance_date: object = None,
         access_token: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> UnrealisedCgtReport:
         """Get the v2 unrealised-CGT report for a supported tax portfolio."""
         params = {"balance_date": str(balance_date)} if balance_date is not None else None
         data = await self._request(
@@ -1106,7 +1125,7 @@ class SharesightAPI:
             ["v2", f"portfolios/{portfolio_id}/unrealised_cgt.json", params],
             access_token=access_token,
         )
-        return self._mapping(data, "get_unrealised_cgt")
+        return cast(UnrealisedCgtReport, self._mapping(data, "get_unrealised_cgt"))
 
     async def list_holdings(
         self,
@@ -1316,15 +1335,15 @@ class SharesightAPI:
         *,
         consolidated: bool | None = None,
         access_token: str | None = None,
-    ) -> dict[str, Any]:
-        """Get the authenticated user's settings for a portfolio."""
+    ) -> UserSettingResponse:
+        """Get the authenticated user's saved report settings for a portfolio."""
         params = {"consolidated": str(consolidated).lower()} if consolidated is not None else None
         data = await self._request(
             "GET",
             ["v3", f"portfolios/{portfolio_id}/user_setting", params],
             access_token=access_token,
         )
-        return self._mapping(data, "get_portfolio_user_setting")
+        return cast(UserSettingResponse, self._mapping(data, "get_portfolio_user_setting"))
 
     async def get_portfolio_benchmark(
         self,
@@ -1336,8 +1355,13 @@ class SharesightAPI:
         consolidated: bool | None = None,
         interest_method: str | None = None,
         access_token: str | None = None,
-    ) -> dict[str, Any]:
-        """Get configured benchmark performance (internal, entitlement-dependent)."""
+    ) -> BenchmarkResponse:
+        """Get configured benchmark performance (internal, entitlement-dependent).
+
+        Live responses use ``capital_gain_percent`` (not the documented
+        ``capital_gain_percentage``) and add undocumented ``maximum_drawdown``
+        and ``return_over_drawdown`` figures.
+        """
         params: dict[str, str] = {}
         if start_date is not None:
             params["start_date"] = str(start_date)
@@ -1354,7 +1378,7 @@ class SharesightAPI:
             ["v3", f"portfolios/{portfolio_id}/benchmark.json", params or None],
             access_token=access_token,
         )
-        return self._mapping(data, "get_portfolio_benchmark")
+        return cast(BenchmarkResponse, self._mapping(data, "get_portfolio_benchmark"))
 
     async def get_portfolio_value_data(
         self,
@@ -1393,7 +1417,7 @@ class SharesightAPI:
         custom_group_id: int | str | None = None,
         benchmark_code: str | None = None,
         access_token: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> PerformanceIndexChartResponse:
         """Get growth-index series for a portfolio and benchmark."""
         params: dict[str, str] = {}
         if start_date is not None:
@@ -1413,19 +1437,157 @@ class SharesightAPI:
             ["v3", f"portfolios/{portfolio_id}/performance_index_chart", params or None],
             access_token=access_token,
         )
-        return self._mapping(data, "get_portfolio_performance_index_chart")
+        return cast(
+            PerformanceIndexChartResponse,
+            self._mapping(data, "get_portfolio_performance_index_chart"),
+        )
 
-    async def list_user_instruments(self, *, access_token: str | None = None) -> dict[str, Any]:
+    async def list_user_instruments(
+        self, *, access_token: str | None = None
+    ) -> UserInstrumentsResponse:
         """List instruments held across the authenticated user's portfolios."""
         data = await self._request(
             "GET", ["v2", "user_instruments.json", None], access_token=access_token
         )
-        return self._mapping(data, "list_user_instruments")
+        return cast(UserInstrumentsResponse, self._mapping(data, "list_user_instruments"))
 
-    async def get_my_user(self, *, access_token: str | None = None) -> dict[str, Any]:
-        """Get non-secret account and subscription metadata."""
+    async def get_my_user(self, *, access_token: str | None = None) -> MyUserResponse:
+        """Get account and subscription metadata.
+
+        The payload includes the account holder's name and e-mail address.
+        Treat it as personal data: do not log it or copy it into diagnostics.
+        """
         data = await self._request("GET", ["v2", "my_user.json", None], access_token=access_token)
-        return self._mapping(data, "get_my_user")
+        return cast(MyUserResponse, self._mapping(data, "get_my_user"))
+
+    async def get_single_sign_on(self, *, access_token: str | None = None) -> SingleSignOnResponse:
+        """Mint a short-lived Sharesight web login link for the current user.
+
+        The returned ``login_url`` logs the browser straight into Sharesight
+        for roughly one minute.  It is a credential: never log it, persist it,
+        or expose it to anyone other than the account holder.
+        """
+        data = await self._request(
+            "GET", ["v2", "single_sign_on.json", None], access_token=access_token
+        )
+        return cast(SingleSignOnResponse, self._mapping(data, "get_single_sign_on"))
+
+    # -- Mobile-tagged read-only routes -------------------------------------
+    # Sharesight labels these ``3.0.0-mobile`` in its apiDoc.  Production
+    # standard tokens serve them today (2026-09), but they are not part of the
+    # public contract, so hosts must tolerate 403/404/406 and degrade.
+
+    async def get_watchlist(
+        self,
+        *,
+        start_date: object = None,
+        access_token: str | None = None,
+    ) -> WatchlistResponse:
+        """List the user's watched instruments with their latest prices."""
+        params = {"start_date": str(start_date)} if start_date is not None else None
+        data = await self._request(
+            "GET", ["v3", "watchlist.json", params], access_token=access_token
+        )
+        return cast(WatchlistResponse, self._mapping(data, "get_watchlist"))
+
+    async def get_sharechecker(
+        self, instrument_id: int | str, *, access_token: str | None = None
+    ) -> SharecheckerResponse:
+        """Get Sharesight's instrument fundamentals and long-run performance."""
+        data = await self._request(
+            "GET",
+            ["v3", f"instruments/{instrument_id}/sharechecker", None],
+            access_token=access_token,
+        )
+        return cast(SharecheckerResponse, self._mapping(data, "get_sharechecker"))
+
+    async def get_holding_average_purchase_price(
+        self, holding_id: int | str, *, access_token: str | None = None
+    ) -> AveragePurchasePriceResponse:
+        """Get the official average purchase price in the instrument currency."""
+        data = await self._request(
+            "GET",
+            ["v3", f"holdings/{holding_id}/average_purchase_price.json", None],
+            access_token=access_token,
+        )
+        return cast(
+            AveragePurchasePriceResponse,
+            self._mapping(data, "get_holding_average_purchase_price"),
+        )
+
+    async def get_holding_cost_base(
+        self, holding_id: int | str, *, access_token: str | None = None
+    ) -> CostBaseResponse:
+        """Get the official cost base of a holding.
+
+        ``get_holding(..., cost_base=True)`` returns the same figures on the
+        public detail route and is the better first choice.
+        """
+        data = await self._request(
+            "GET",
+            ["v3", f"holdings/{holding_id}/cost_base.json", None],
+            access_token=access_token,
+        )
+        return cast(CostBaseResponse, self._mapping(data, "get_holding_cost_base"))
+
+    async def get_holding_value_data(
+        self,
+        holding_id: int | str,
+        *,
+        start_date: object = None,
+        access_token: str | None = None,
+    ) -> ValueSeriesResponse | list[dict[str, Any]]:
+        """Get a holding's daily value series (same shape as the portfolio one)."""
+        params = {"start_date": str(start_date)} if start_date is not None else None
+        data = await self._request(
+            "GET",
+            ["v3", f"holdings/{holding_id}/holding_value_data.json", params],
+            access_token=access_token,
+        )
+        if isinstance(data, list):
+            return cast(list[dict[str, Any]], data)
+        return cast(ValueSeriesResponse, self._mapping(data, "get_holding_value_data"))
+
+    async def get_portfolio_value(
+        self,
+        portfolio_id: int | str,
+        *,
+        consolidated: bool | None = None,
+        access_token: str | None = None,
+    ) -> PortfolioValueResponse:
+        """Get the point-in-time portfolio balance.
+
+        The full performance report already carries ``value``; this lighter
+        route suits callers that only need the headline number.
+        """
+        params = {"consolidated": str(consolidated).lower()} if consolidated is not None else None
+        data = await self._request(
+            "GET",
+            ["v3", f"portfolios/{portfolio_id}/value", params],
+            access_token=access_token,
+        )
+        return cast(PortfolioValueResponse, self._mapping(data, "get_portfolio_value"))
+
+    async def list_instrument_prices(
+        self,
+        instrument_id: int | str,
+        *,
+        start_date: object = None,
+        end_date: object = None,
+        access_token: str | None = None,
+    ) -> InstrumentPricesResponse:
+        """List historical prices for an instrument (v2 mobile-tagged route)."""
+        params: dict[str, str] = {}
+        if start_date is not None:
+            params["start_date"] = str(start_date)
+        if end_date is not None:
+            params["end_date"] = str(end_date)
+        data = await self._request(
+            "GET",
+            ["v2", f"instruments/{instrument_id}/prices.json", params or None],
+            access_token=access_token,
+        )
+        return cast(InstrumentPricesResponse, self._mapping(data, "list_instrument_prices"))
 
     async def list_groups(self, *, access_token: str | None = None) -> GroupsResponse:
         """List standard and custom report groups through public v2."""

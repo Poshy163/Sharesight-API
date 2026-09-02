@@ -10,7 +10,7 @@ with open("requirements.txt", encoding="utf-8") as f:
 
 setup(
     name="SharesightAPI",
-    version="1.5.0",
+    version="1.6.0",
     author="Joshua Leaper",
     author_email="poshernater163@gmail.com",
     description="A Python library to access your sharesight portfolio information",

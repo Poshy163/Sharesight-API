@@ -5,6 +5,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+#: Statuses that :class:`SharesightAPI.SharesightAPI` retries with backoff.
+RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({408, 425, 429, 500, 502, 503, 504})
+
 
 class SharesightError(Exception):
     """Base exception for all Sharesight API errors."""
@@ -32,6 +35,40 @@ class SharesightAPIError(SharesightError):
         self.response_data = response_data
         self.response_headers = dict(response_headers or {})
         super().__init__(f"HTTP {status_code}: {message}")
+
+    @property
+    def is_unauthorised(self) -> bool:
+        """True for HTTP 401 (expired, revoked or locked-out credentials)."""
+        return self.status_code == 401
+
+    @property
+    def is_forbidden(self) -> bool:
+        """True for HTTP 403 (entitlement, plan or scope refusals)."""
+        return self.status_code == 403
+
+    @property
+    def is_not_found(self) -> bool:
+        """True for HTTP 404 (unknown or inaccessible resource)."""
+        return self.status_code == 404
+
+    @property
+    def is_version_unsupported(self) -> bool:
+        """True when Sharesight rejects the API version for this route.
+
+        Sharesight answers ``406 Not Acceptable`` with a reason such as
+        ``"API version 3 is not supported for this endpoint"`` when a route
+        exists only in another generation.  Hosts use this to fall back from
+        V3 to V2 (or park the endpoint) without string-matching themselves.
+        """
+        if self.status_code != 406:
+            return False
+        text = self.message.lower()
+        return "version" in text and "not supported" in text
+
+    @property
+    def is_retryable(self) -> bool:
+        """True for transient statuses the client would retry on its own."""
+        return self.status_code in RETRYABLE_STATUS_CODES
 
 
 class SharesightAuthError(SharesightAPIError):

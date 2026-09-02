@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import stat
+import sys
 from collections import deque
 from decimal import Decimal
 from typing import Any
@@ -11,6 +12,7 @@ from typing import Any
 import pytest
 
 from SharesightAPI import (
+    RETRYABLE_STATUS_CODES,
     SharesightAPI,
     SharesightAPIError,
     SharesightAuthError,
@@ -948,6 +950,173 @@ async def test_documented_model_wire_shapes_are_preserved() -> None:
 
 
 @pytest.mark.asyncio
+async def test_account_and_mobile_helpers_use_documented_routes() -> None:
+    """The 1.6 helpers must call the exact routes the apiDoc publishes."""
+    session = FakeSession(*(FakeResponse(200, {}) for _ in range(9)))
+    api = client(session)
+
+    await api.get_single_sign_on(access_token="token")
+    await api.get_watchlist(start_date="2026-08-01", access_token="token")
+    await api.get_sharechecker(4321, access_token="token")
+    await api.get_holding_average_purchase_price(55, access_token="token")
+    await api.get_holding_cost_base(55, access_token="token")
+    await api.get_holding_value_data(55, start_date="2026-01-01", access_token="token")
+    await api.get_portfolio_value(7, consolidated=False, access_token="token")
+    await api.list_instrument_prices(
+        4321, start_date="2026-01-01", end_date="2026-08-31", access_token="token"
+    )
+    await api.get_watchlist(access_token="token")
+
+    assert [request[1] for request in session.requests] == [
+        "https://api.sharesight.com/api/v2/single_sign_on.json",
+        "https://api.sharesight.com/api/v3/watchlist.json",
+        "https://api.sharesight.com/api/v3/instruments/4321/sharechecker",
+        "https://api.sharesight.com/api/v3/holdings/55/average_purchase_price.json",
+        "https://api.sharesight.com/api/v3/holdings/55/cost_base.json",
+        "https://api.sharesight.com/api/v3/holdings/55/holding_value_data.json",
+        "https://api.sharesight.com/api/v3/portfolios/7/value",
+        "https://api.sharesight.com/api/v2/instruments/4321/prices.json",
+        "https://api.sharesight.com/api/v3/watchlist.json",
+    ]
+    assert session.requests[1][2]["params"] == {"start_date": "2026-08-01"}
+    assert session.requests[5][2]["params"] == {"start_date": "2026-01-01"}
+    assert session.requests[6][2]["params"] == {"consolidated": "false"}
+    assert session.requests[7][2]["params"] == {
+        "start_date": "2026-01-01",
+        "end_date": "2026-08-31",
+    }
+    assert session.requests[8][2].get("params") is None
+
+
+@pytest.mark.asyncio
+async def test_live_report_and_account_wire_shapes_are_preserved() -> None:
+    """Fields observed on production payloads must survive the typed helpers.
+
+    The shapes mirror live 2026-09 responses (synthetic values): grouped
+    ``sub_totals``, embedded cash accounts, per-holding ``instrument_currency``
+    and label objects, the undocumented benchmark drawdown pair, the
+    ``chart.data`` value-series wrapper and watchlist price diffs.
+    """
+    performance = {
+        "report": {
+            "id": "7_2026-01-01_2026-08-31",
+            "portfolio_tz_name": "Australia/Sydney",
+            "currency": {"id": 1, "code": "AUD", "symbol": "$", "qualified_symbol": "A$"},
+            "value": 1000.0,
+            "percentages_annualised": False,
+            "holdings": [
+                {
+                    "id": 11,
+                    "symbol": "AAA",
+                    "instrument_currency": {"code": "USD", "symbol": "$"},
+                    "instrument_price": 12.5,
+                    "group_id": 2,
+                    "group_name": "NASDAQ",
+                    "labels": [{"id": 9, "name": "Growth", "color": "#ff0000"}],
+                    "number_of_unconfirmed_transactions": 1,
+                }
+            ],
+            "sub_totals": [
+                {"group_id": 2, "group_name": "NASDAQ", "value": 600.0, "total_gain": 60.0}
+            ],
+            "cash_accounts": [
+                {"id": 5, "key": 5, "name": "Cash", "value": 400.0, "currency": {"code": "AUD"}}
+            ],
+        }
+    }
+    benchmark = {
+        "benchmark": {
+            "instrument": {"code": "A200", "market_code": "ASX"},
+            "capital_gain_percent": 12.5,
+            "maximum_drawdown": 8.4,
+            "return_over_drawdown": 1.5,
+        }
+    }
+    value_series = {"chart": {"data": [{"timestamp": "2026-08-30", "value": 1000.0}]}}
+    watchlist = {
+        "watchlist": [
+            {
+                "instrument": {"code": "AAPL", "market_code": "NASDAQ"},
+                "price": {"value": 1.0, "diff_value": -0.5, "diff_percent": -0.25},
+            }
+        ]
+    }
+    payouts = {
+        "payouts": [
+            {
+                "id": None,
+                "currency": "AUD",
+                "franking_credits": 1.5,
+                "drp_trade_attributes": {"dividend_reinvested": False, "price": "0.0"},
+            }
+        ]
+    }
+    api = client(
+        FakeSession(
+            FakeResponse(200, performance),
+            FakeResponse(200, benchmark),
+            FakeResponse(200, value_series),
+            FakeResponse(200, watchlist),
+            FakeResponse(200, payouts),
+        )
+    )
+
+    report = (await api.get_portfolio_performance_v3(7, access_token="token"))["report"]
+    returned_benchmark = (await api.get_portfolio_benchmark(7, access_token="token"))["benchmark"]
+    returned_series = await api.get_portfolio_value_data(7, access_token="token")
+    returned_watchlist = (await api.get_watchlist(access_token="token"))["watchlist"]
+    returned_payouts = (await api.list_portfolio_payouts(7, access_token="token"))["payouts"]
+
+    assert report["holdings"][0]["instrument_currency"]["code"] == "USD"
+    assert report["holdings"][0]["labels"][0]["name"] == "Growth"
+    assert report["sub_totals"][0]["group_name"] == "NASDAQ"
+    assert report["cash_accounts"][0]["value"] == 400.0
+    assert report["currency"]["qualified_symbol"] == "A$"
+    assert returned_benchmark["maximum_drawdown"] == 8.4
+    assert returned_benchmark["return_over_drawdown"] == 1.5
+    assert isinstance(returned_series, dict)
+    assert returned_series["chart"]["data"][0]["timestamp"] == "2026-08-30"
+    assert returned_watchlist[0]["price"]["diff_percent"] == -0.25
+    assert returned_payouts[0]["id"] is None
+    assert returned_payouts[0]["drp_trade_attributes"]["dividend_reinvested"] is False
+
+
+@pytest.mark.asyncio
+async def test_version_unsupported_and_status_classification_properties() -> None:
+    """Hosts fall back from V3 to V2 only on Sharesight's explicit 406 reason."""
+    session = FakeSession(
+        FakeResponse(406, {"reason": "API version 3 is not supported for this endpoint"}),
+        FakeResponse(406, {"reason": "Not Acceptable"}),
+        FakeResponse(404, {"reason": "Portfolio not found"}),
+        FakeResponse(403, {"reason": "This feature requires a plan upgrade"}),
+        FakeResponse(503, {"reason": "Maintenance"}),
+    )
+    api = client(session)
+
+    with pytest.raises(SharesightAPIError) as unsupported:
+        await api.get_api_request(["v3", "portfolios/7/benchmark.json", None], "token")
+    with pytest.raises(SharesightAPIError) as plain_406:
+        await api.get_api_request(["v3", "portfolios/7/benchmark.json", None], "token")
+    with pytest.raises(SharesightAPIError) as missing:
+        await api.get_api_request(["v3", "portfolios/7", None], "token")
+    with pytest.raises(SharesightAPIError) as forbidden:
+        await api.get_api_request(["v3", "portfolios/7", None], "token")
+    with pytest.raises(SharesightAPIError) as outage:
+        await api.get_api_request(["v3", "portfolios/7", None], "token")
+
+    assert unsupported.value.is_version_unsupported is True
+    assert plain_406.value.is_version_unsupported is False
+    assert missing.value.is_not_found is True
+    assert missing.value.is_version_unsupported is False
+    assert forbidden.value.is_forbidden is True
+    assert forbidden.value.is_retryable is False
+    assert outage.value.is_retryable is True
+    assert outage.value.is_unauthorised is False
+    assert SharesightAuthError().is_unauthorised is True
+    assert 429 in RETRYABLE_STATUS_CODES
+
+
+@pytest.mark.asyncio
 async def test_create_trade_uses_documented_route_and_injects_portfolio_id() -> None:
     session = FakeSession(FakeResponse(201, {"trade": {"id": 1}}))
 
@@ -1114,6 +1283,10 @@ async def test_none_timeout_inherits_session_default_for_token_requests() -> Non
     assert "timeout" not in session.requests[0][2]
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX file-permission semantics are not available on Windows",
+)
 @pytest.mark.asyncio
 async def test_token_file_is_private_atomic_and_delete_is_idempotent(tmp_path) -> None:
     token_file = tmp_path / "sharesight-token.json"
@@ -1144,6 +1317,10 @@ async def test_token_file_is_private_atomic_and_delete_is_idempotent(tmp_path) -
     assert not token_file.exists()
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX file-permission semantics are not available on Windows",
+)
 @pytest.mark.asyncio
 async def test_loading_legacy_token_file_repairs_permissions(tmp_path) -> None:
     token_file = tmp_path / "legacy-token.json"
@@ -1173,6 +1350,10 @@ async def test_loading_legacy_token_file_repairs_permissions(tmp_path) -> None:
     assert stat.S_IMODE(token_file.stat().st_mode) == 0o600
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX file-permission semantics are not available on Windows",
+)
 @pytest.mark.asyncio
 async def test_token_save_does_not_follow_predictable_temp_symlink(tmp_path) -> None:
     token_file = tmp_path / "sharesight-token.json"
